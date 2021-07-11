@@ -1,10 +1,10 @@
 package ragu
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/kralicky/ragu/pkg/machinery"
@@ -85,10 +85,12 @@ func GenerateCode(input string, grpc bool) ([]*File, error) {
 	codeGeneratorRequest := &pluginpb.CodeGeneratorRequest{
 		FileToGenerate: []string{input}, // Only generate the input file
 		ProtoFile:      allProtos,
+		CompilerVersion: &pluginpb.Version{
+			Major: pointer.Int32(0),
+			Minor: pointer.Int32(1),
+			Patch: pointer.Int32(0),
+		},
 	}
-
-	bytes, _ := json.MarshalIndent(codeGeneratorRequest, "", "  ")
-	os.WriteFile("generated.json", bytes, 0644)
 
 	opts := protogen.Options{}
 	plugin, err := opts.New(codeGeneratorRequest)
@@ -108,6 +110,24 @@ func GenerateCode(input string, grpc bool) ([]*File, error) {
 	resp := plugin.Response()
 	if resp.Error != nil {
 		return nil, errors.New(resp.GetError())
+	}
+
+	for _, f := range resp.File {
+		*f.Name = filepath.Base(*f.Name)
+		// these generators produce different headers
+		if strings.HasSuffix(*f.Name, "_grpc.pb.go") {
+			*f.Content = strings.Replace(*f.Content,
+				`// - protoc `,
+				`// - ragù   `,
+				1,
+			)
+		} else if strings.HasSuffix(*f.Name, ".pb.go") {
+			*f.Content = strings.Replace(*f.Content,
+				`// 	protoc `,
+				`// 	ragù   `,
+				1,
+			)
+		}
 	}
 	return resp.File, nil
 }

@@ -30,7 +30,7 @@ $ ragu -o pkg/types --grpc=false types.proto foo.proto
 			}
 			for _, file := range files {
 				// Write file to configured output directory
-				path := filepath.Join(outDir, filepath.Base(file.GetName()))
+				path := filepath.Join(outDir, file.GetName())
 				if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 					return err
 				}
