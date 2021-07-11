@@ -19,7 +19,11 @@ import (
 // From protoc-gen-go-grpc/main.go
 const version = "1.1.0"
 
-var requireUnimplemented *bool = pointer.Bool(false)
+var requireUnimplemented *bool = pointer.Bool(true)
+
+func SetRequireUnimplemented(req bool) {
+	requireUnimplemented = &req
+}
 
 type File = pluginpb.CodeGeneratorResponse_File
 
