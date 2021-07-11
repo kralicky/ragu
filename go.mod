@@ -7,5 +7,4 @@ require (
 	github.com/yoheimuta/go-protoparser/v4 v4.3.0
 	google.golang.org/protobuf v1.27.1
 	k8s.io/utils v0.0.0-20210709001253-0e1f9d693477
-	sigs.k8s.io/yaml v1.2.0
 )

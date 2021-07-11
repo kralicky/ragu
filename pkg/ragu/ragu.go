@@ -50,7 +50,22 @@ func resolveDependencies(desc *descriptorpb.FileDescriptorProto) []*descriptorpb
 		}
 	}
 	deps = append(deps, desc)
-	return deps
+
+	// remove duplicates
+	depsFiltered := []*descriptorpb.FileDescriptorProto{}
+	for _, dep := range deps {
+		exists := false
+		for _, existing := range depsFiltered {
+			if existing.GetName() == dep.GetName() {
+				exists = true
+				break
+			}
+		}
+		if !exists {
+			depsFiltered = append(depsFiltered, dep)
+		}
+	}
+	return depsFiltered
 }
 
 func GenerateCode(input string, grpc bool) ([]*File, error) {

@@ -77,6 +77,13 @@ func (gen *descriptorGen) finalize() {
 				// enum or message type
 				if strings.Contains(field.GetTypeName(), ".") {
 					// Already fully qualified or from another package
+					if field.GetTypeName()[0] != '.' {
+						// Don't know if this is an enum or message type, so let the
+						// code generator figure it out later
+						field.Type = nil
+						// fully qualify the type name
+						field.TypeName = pointer.String("." + *field.TypeName)
+					}
 					continue
 				}
 				tmpStack := append(append([]string{}, stack...), field.GetTypeName())
