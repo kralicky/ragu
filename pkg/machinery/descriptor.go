@@ -70,47 +70,48 @@ func (gen *descriptorGen) finalize() {
 	}
 
 	// Go back and make sure all types are fully qualified
-	stack := []string{*gen.desc.Package}
-	doResolveType := func(msg *descriptorpb.DescriptorProto, stack []string) {
-		for _, field := range msg.Field {
-			if field.Type != nil && field.TypeName != nil {
-				// enum or message type
-				if strings.Contains(field.GetTypeName(), ".") {
-					// Already fully qualified or from another package
-					if field.GetTypeName()[0] != '.' {
-						// Don't know if this is an enum or message type, so let the
-						// code generator figure it out later
-						field.Type = nil
-						// fully qualify the type name
-						field.TypeName = pointer.String("." + *field.TypeName)
-					}
-					continue
+	for _, msg := range gen.desc.MessageType {
+		gen.resolveTypeNames(msg, []string{*gen.desc.Package})
+	}
+}
+
+func (gen *descriptorGen) resolveTypeNames(msg *descriptorpb.DescriptorProto, stack []string) {
+	for _, field := range msg.Field {
+		if field.Type != nil && field.TypeName != nil {
+			// enum or message type
+			if strings.Contains(field.GetTypeName(), ".") {
+				// Already fully qualified or from another package
+				if field.GetTypeName()[0] != '.' {
+					// Don't know if this is an enum or message type, so let the
+					// code generator figure it out later
+					field.Type = nil
+					// fully qualify the type name
+					field.TypeName = pointer.String("." + *field.TypeName)
 				}
-				tmpStack := append(append([]string{}, stack...), field.GetTypeName())
-				checkFn := gen.messageTypeExists
-				if *field.Type == descriptorpb.FieldDescriptorProto_TYPE_ENUM {
-					checkFn = gen.enumTypeExists
+				continue
+			}
+			tmpStack := append(append([]string{}, stack...), msg.GetName(), field.GetTypeName())
+			checkFn := gen.messageTypeExists
+			if *field.Type == descriptorpb.FieldDescriptorProto_TYPE_ENUM {
+				checkFn = gen.enumTypeExists
+			}
+			for len(tmpStack) >= 2 {
+				if checkFn(tmpStack) {
+					name := "." + strings.Join(tmpStack, ".")
+					field.TypeName = &name
+					break
+				} else {
+					// Go up one level
+					tmpStack = append(tmpStack[:len(tmpStack)-2], tmpStack[len(tmpStack)-1])
 				}
-				for len(tmpStack) >= 2 {
-					if checkFn(tmpStack) {
-						name := "." + strings.Join(tmpStack, ".")
-						field.TypeName = &name
-						break
-					} else {
-						// Go up one level
-						tmpStack = append(tmpStack[:len(tmpStack)-2], tmpStack[len(tmpStack)-1])
-					}
-				}
+			}
+			if field.GetTypeName()[0] != '.' {
+				panic("Failed to resolve typename " + field.GetTypeName())
 			}
 		}
 	}
-
-	for _, msg := range gen.desc.MessageType {
-		doResolveType(msg, stack)
-		for _, nested := range msg.NestedType {
-			stack = append(stack, *nested.Name)
-			doResolveType(nested, stack)
-		}
+	for _, nested := range msg.NestedType {
+		gen.resolveTypeNames(nested, append(stack, nested.GetName()))
 	}
 }
 
@@ -144,11 +145,8 @@ func (gen *descriptorGen) messageTypeExists(stack []string) bool {
 }
 
 func (gen *descriptorGen) enumTypeExists(stack []string) bool {
-	if stack[0] == *gen.desc.Package {
-		stack = stack[1:]
-	}
 	var current interface{} = gen.desc
-	for len(stack) > 1 {
+	for len(stack) > 2 {
 		var msgList []*descriptorpb.DescriptorProto
 		switch cur := current.(type) {
 		case *descriptorpb.FileDescriptorProto:
@@ -158,7 +156,7 @@ func (gen *descriptorGen) enumTypeExists(stack []string) bool {
 		}
 		found := false
 		for _, msg := range msgList {
-			if msg.GetName() == stack[0] {
+			if msg.GetName() == stack[1] {
 				current = msg
 				stack = stack[1:]
 				found = true
@@ -172,13 +170,13 @@ func (gen *descriptorGen) enumTypeExists(stack []string) bool {
 	switch cur := current.(type) {
 	case *descriptorpb.FileDescriptorProto:
 		for _, msg := range cur.EnumType {
-			if msg.GetName() == stack[0] {
+			if msg.GetName() == stack[1] {
 				return true
 			}
 		}
 	case *descriptorpb.DescriptorProto:
 		for _, msg := range cur.EnumType {
-			if msg.GetName() == stack[0] {
+			if msg.GetName() == stack[1] {
 				return true
 			}
 		}
@@ -291,9 +289,13 @@ func (gen *descriptorGen) genMethodDescriptor(rpc *parser.RPC) *descriptorpb.Met
 	responseType := rpc.RPCResponse.MessageType
 	if !strings.Contains(requestType, ".") {
 		requestType = "." + *gen.desc.Package + "." + requestType
+	} else if requestType[0] != '.' {
+		requestType = "." + requestType
 	}
 	if !strings.Contains(responseType, ".") {
 		responseType = "." + *gen.desc.Package + "." + responseType
+	} else if responseType[0] != '.' {
+		responseType = "." + responseType
 	}
 	desc := &descriptorpb.MethodDescriptorProto{
 		Name:            &rpc.RPCName,
@@ -370,6 +372,7 @@ func (gen *descriptorGen) genFieldDescriptor(field *parser.Field) *descriptorpb.
 		Options: &descriptorpb.FieldOptions{},
 	}
 	fd.Name = &field.FieldName
+
 	i, err := strconv.Atoi(field.FieldNumber)
 	if err != nil {
 		panic(err)
@@ -429,6 +432,7 @@ func (gen *descriptorGen) genMapFieldDescriptor(
 ) (*descriptorpb.FieldDescriptorProto, *descriptorpb.DescriptorProto) {
 	fd := &descriptorpb.FieldDescriptorProto{
 		Name:     pointer.String(field.MapName),
+		Type:     descriptorpb.FieldDescriptorProto_TYPE_MESSAGE.Enum(),
 		TypeName: pointer.String(fmt.Sprintf("%sEntry", field.MapName)),
 	}
 
@@ -495,4 +499,88 @@ func (gen *descriptorGen) genOneofDescriptor(
 		fieldDescriptors = append(fieldDescriptors, fd)
 	}
 	return desc, fieldDescriptors
+}
+
+// Go through all message types from all protos, and find any message fields
+// which have a typename set but not a type. These will (should) be types
+// imported from other packages where we couldn't tell if they were enum or
+// message types at the time. According to the docs, we should be able to
+// leave the type field empty, but that does not appear to be correct as it
+// casuses proto to think some enums are messages.
+func ResolveKindsFromDependencies(files []*descriptorpb.FileDescriptorProto) {
+	fileMap := map[string]*descriptorpb.FileDescriptorProto{}
+	for _, f := range files {
+		fileMap[f.GetPackage()] = f
+	}
+	for _, file := range files {
+		for _, message := range file.GetMessageType() {
+			resolveKindsRecursive(fileMap, file, message)
+		}
+	}
+}
+
+func resolveKindsRecursive(
+	fileMap map[string]*descriptorpb.FileDescriptorProto,
+	currentFile *descriptorpb.FileDescriptorProto,
+	message *descriptorpb.DescriptorProto,
+) {
+	for _, field := range message.GetField() {
+		if field.TypeName != nil && field.Type == nil {
+			// find out which package name the typename starts with
+			var pkgName string
+			typename := field.GetTypeName()[1:] // trim off the leading dot
+			for k := range fileMap {
+				if strings.HasPrefix(typename, k) {
+					pkgName = k
+				}
+			}
+			if pkgName == "" {
+				panic("this shouldn't happen")
+			}
+			targetFile, ok := fileMap[pkgName]
+			if !ok {
+				panic("this shouldn't happen")
+			}
+
+			parts := strings.SplitAfter(typename, pkgName+".")
+			if len(parts) != 2 {
+				panic("bug")
+			}
+			parts = strings.Split(parts[1], ".")
+
+			msgsToSearch := targetFile.MessageType
+			enumsToSearch := targetFile.EnumType
+
+			for len(parts) > 0 {
+				for _, msg := range msgsToSearch {
+					if *msg.Name == parts[0] {
+						msgsToSearch = msg.NestedType
+						enumsToSearch = msg.EnumType
+						if len(parts) == 1 {
+							field.Type = descriptorpb.FieldDescriptorProto_TYPE_MESSAGE.Enum()
+							goto next
+						}
+						parts = parts[1:]
+						break
+					}
+				}
+				for _, enum := range enumsToSearch {
+					if *enum.Name == parts[0] {
+						if len(parts) == 1 {
+							field.Type = descriptorpb.FieldDescriptorProto_TYPE_ENUM.Enum()
+							goto next
+						} else {
+							panic("this shouldn't happen")
+						}
+					}
+				}
+			}
+			panic("Could not resolve type " + field.GetName())
+		next:
+		}
+	}
+
+	for _, nested := range message.NestedType {
+		resolveKindsRecursive(fileMap, currentFile, nested)
+	}
 }

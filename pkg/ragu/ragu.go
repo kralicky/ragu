@@ -85,6 +85,7 @@ func GenerateCode(input string, grpc bool) ([]*File, error) {
 
 	// Generate descriptors for dependencies, including well-known types
 	allProtos := resolveDependencies(desc)
+	machinery.ResolveKindsFromDependencies(allProtos)
 
 	codeGeneratorRequest := &pluginpb.CodeGeneratorRequest{
 		FileToGenerate: []string{input}, // Only generate the input file
