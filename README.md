@@ -48,7 +48,7 @@ that is a drop-in replacement for `protoc`+`protoc-gen-go`+`protoc-gen-go-grpc`.
 
 ### What versions of protobuf, gRPC, etc. libraries does this require?
 
-No idea, it's best not to think about it too much. Ragu uses `google.golang.org/protobuf v1.27.1` and v1.1.0 of the gRPC code generator.
+Whatever was in master at the time of release.
 
 ### Are there differences between protoc and ragu generated code?
 
