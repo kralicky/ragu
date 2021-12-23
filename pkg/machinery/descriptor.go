@@ -508,9 +508,9 @@ func (gen *descriptorGen) genOneofDescriptor(
 // leave the type field empty, but that does not appear to be correct as it
 // casuses proto to think some enums are messages.
 func ResolveKindsFromDependencies(files []*descriptorpb.FileDescriptorProto) {
-	fileMap := map[string]*descriptorpb.FileDescriptorProto{}
+	fileMap := map[string][]*descriptorpb.FileDescriptorProto{}
 	for _, f := range files {
-		fileMap[f.GetPackage()] = f
+		fileMap[f.GetPackage()] = append(fileMap[f.GetPackage()], f)
 	}
 	for _, file := range files {
 		for _, message := range file.GetMessageType() {
@@ -520,7 +520,7 @@ func ResolveKindsFromDependencies(files []*descriptorpb.FileDescriptorProto) {
 }
 
 func resolveKindsRecursive(
-	fileMap map[string]*descriptorpb.FileDescriptorProto,
+	fileMap map[string][]*descriptorpb.FileDescriptorProto,
 	currentFile *descriptorpb.FileDescriptorProto,
 	message *descriptorpb.DescriptorProto,
 ) {
@@ -548,8 +548,12 @@ func resolveKindsRecursive(
 			}
 			parts = strings.Split(parts[1], ".")
 
-			msgsToSearch := targetFile.MessageType
-			enumsToSearch := targetFile.EnumType
+			msgsToSearch := []*descriptorpb.DescriptorProto{}
+			enumsToSearch := []*descriptorpb.EnumDescriptorProto{}
+			for _, f := range targetFile {
+				msgsToSearch = append(msgsToSearch, f.GetMessageType()...)
+				enumsToSearch = append(enumsToSearch, f.GetEnumType()...)
+			}
 
 			for len(parts) > 0 {
 				for _, msg := range msgsToSearch {
