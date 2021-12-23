@@ -3,6 +3,7 @@ package machinery
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 
@@ -106,7 +107,9 @@ func (gen *descriptorGen) resolveTypeNames(msg *descriptorpb.DescriptorProto, st
 				}
 			}
 			if field.GetTypeName()[0] != '.' {
-				panic("Failed to resolve typename " + field.GetTypeName())
+				fmt.Fprintf(os.Stderr, "Could not resolve type %s in field %s.%s\n",
+					field.GetTypeName(), msg.GetName(), field.GetName())
+				os.Exit(1)
 			}
 		}
 	}
@@ -524,6 +527,7 @@ func resolveKindsRecursive(
 	currentFile *descriptorpb.FileDescriptorProto,
 	message *descriptorpb.DescriptorProto,
 ) {
+FIELDS:
 	for _, field := range message.GetField() {
 		if field.TypeName != nil && field.Type == nil {
 			// find out which package name the typename starts with
@@ -555,6 +559,7 @@ func resolveKindsRecursive(
 				enumsToSearch = append(enumsToSearch, f.GetEnumType()...)
 			}
 
+		PARTS:
 			for len(parts) > 0 {
 				for _, msg := range msgsToSearch {
 					if *msg.Name == parts[0] {
@@ -562,25 +567,27 @@ func resolveKindsRecursive(
 						enumsToSearch = msg.EnumType
 						if len(parts) == 1 {
 							field.Type = descriptorpb.FieldDescriptorProto_TYPE_MESSAGE.Enum()
-							goto next
+							continue FIELDS
 						}
 						parts = parts[1:]
-						break
+						continue PARTS
 					}
 				}
 				for _, enum := range enumsToSearch {
 					if *enum.Name == parts[0] {
 						if len(parts) == 1 {
 							field.Type = descriptorpb.FieldDescriptorProto_TYPE_ENUM.Enum()
-							goto next
+							continue FIELDS
 						} else {
 							panic("this shouldn't happen")
 						}
 					}
 				}
+				break
 			}
-			panic("Could not resolve type " + field.GetName())
-		next:
+			fmt.Fprintf(os.Stderr, "Could not resolve type %s in field %s.%s\n",
+				field.GetTypeName(), message.GetName(), field.GetName())
+			os.Exit(1)
 		}
 	}
 
