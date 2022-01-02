@@ -35,15 +35,28 @@ func SetRequireUnimplemented(req bool) {
 
 type File = pluginpb.CodeGeneratorResponse_File
 
+// Computes the path of dep relative to source, and returns a path relative to
+// the current working directory, as such:
+// (path/to/foo.bar, baz.bar) => path/to/baz.bar
+// (path/to/foo.bar, ../baz.bar) => path/baz.bar
+// (path/to/foo.bar, foo/baz.bar) => path/to/foo/baz.bar
+func relativeDependencyPath(source, dep string) string {
+	return filepath.Join(filepath.Dir(source), dep)
+}
+
 func resolveDependencies(desc *descriptorpb.FileDescriptorProto) []*descriptorpb.FileDescriptorProto {
 	deps := []*descriptorpb.FileDescriptorProto{}
 	for i, dep := range desc.Dependency {
+		rel := relativeDependencyPath(desc.GetName(), dep)
 		// Check if file exists
-		if _, err := os.Stat(dep); err == nil {
+		if _, err := os.Stat(rel); err == nil {
 			// File exists
-			proto, err := machinery.ParseProto(dep)
+			proto, err := machinery.ParseProto(rel)
 			if err != nil {
 				log.Fatal(err)
+			}
+			if rel != dep {
+				desc.Dependency[i] = rel
 			}
 			importedDesc := machinery.GenerateDescriptor(proto)
 			deps = append(deps, resolveDependencies(importedDesc)...)
