@@ -3,23 +3,31 @@ package ragu
 import (
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"go/build"
+
+	"golang.org/x/mod/module"
+
+	"github.com/kralicky/ragu/internal/pointer"
 	"github.com/kralicky/ragu/pkg/machinery"
 	"github.com/yoheimuta/go-protoparser/v4"
 	gengo "google.golang.org/protobuf/cmd/protoc-gen-go/internal_gengo"
 	"google.golang.org/protobuf/compiler/protogen"
 	"google.golang.org/protobuf/types/descriptorpb"
 	"google.golang.org/protobuf/types/pluginpb"
-	"k8s.io/utils/pointer"
 )
 
 // From protoc-gen-go-grpc/main.go
 const version = "1.1.0"
 
-var requireUnimplemented *bool = pointer.Bool(true)
+var requireUnimplemented *bool = func() *bool {
+	b := true
+	return &b
+}()
 
 func SetRequireUnimplemented(req bool) {
 	requireUnimplemented = &req
@@ -29,16 +37,16 @@ type File = pluginpb.CodeGeneratorResponse_File
 
 func resolveDependencies(desc *descriptorpb.FileDescriptorProto) []*descriptorpb.FileDescriptorProto {
 	deps := []*descriptorpb.FileDescriptorProto{}
-	for _, dep := range desc.Dependency {
+	for i, dep := range desc.Dependency {
 		// Check if file exists
 		if _, err := os.Stat(dep); err == nil {
 			// File exists
 			proto, err := machinery.ParseProto(dep)
 			if err != nil {
-				panic(err)
+				log.Fatal(err)
 			}
-			desc := machinery.GenerateDescriptor(proto)
-			deps = append(deps, resolveDependencies(desc)...)
+			importedDesc := machinery.GenerateDescriptor(proto)
+			deps = append(deps, resolveDependencies(importedDesc)...)
 		} else if wk, err := machinery.ReadWellKnownType(dep); err == nil {
 			// File does not exist, but is a well-known type
 			reader := strings.NewReader(wk)
@@ -46,9 +54,41 @@ func resolveDependencies(desc *descriptorpb.FileDescriptorProto) []*descriptorpb
 			if err != nil {
 				panic(err)
 			}
-			desc := machinery.GenerateDescriptor(proto)
-			deps = append(deps, resolveDependencies(desc)...)
+			importedDesc := machinery.GenerateDescriptor(proto)
+			deps = append(deps, resolveDependencies(importedDesc)...)
 		} else {
+			// Import from go module
+			last := strings.LastIndex(dep, "/")
+			if last != -1 {
+				filename := dep[last+1:]
+				if strings.HasSuffix(filename, ".proto") {
+					modulePath := dep[:last]
+					if err := module.CheckImportPath(modulePath); err == nil {
+						// check module cache for the file
+						pkg, err := build.Default.Import(modulePath, "", 0)
+						if err != nil {
+							log.Fatal(err)
+						}
+						// Check if proto file exists
+						protoFilePath := filepath.Join(pkg.Dir, filename)
+						if _, err := os.Stat(protoFilePath); err == nil {
+							// File exists
+							proto, err := machinery.ParseProto(protoFilePath)
+							if err != nil {
+								log.Fatal(err)
+							}
+							desc.Dependency[i] = proto.Meta.Filename
+							moduleDesc := machinery.GenerateDescriptor(proto)
+							moduleDesc.Options.GoPackage = pointer.String(pkg.ImportPath)
+							deps = append(deps, resolveDependencies(moduleDesc)...)
+							continue
+						} else {
+							// File does not exist
+							log.Fatalf("file not found in module cache: %s", protoFilePath)
+						}
+					}
+				}
+			}
 			// File does not exist
 			fmt.Fprintln(os.Stderr, "Warning: Dependency", dep, "not found")
 		}

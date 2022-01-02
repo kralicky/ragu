@@ -3,13 +3,15 @@ package machinery
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"strconv"
 	"strings"
+	"unicode"
 
+	"github.com/kralicky/ragu/internal/pointer"
 	"github.com/yoheimuta/go-protoparser/v4/parser"
 	"google.golang.org/protobuf/types/descriptorpb"
-	"k8s.io/utils/pointer"
 )
 
 func stripQuotes(s string) string {
@@ -436,7 +438,7 @@ func (gen *descriptorGen) genMapFieldDescriptor(
 	fd := &descriptorpb.FieldDescriptorProto{
 		Name:     pointer.String(field.MapName),
 		Type:     descriptorpb.FieldDescriptorProto_TYPE_MESSAGE.Enum(),
-		TypeName: pointer.String(fmt.Sprintf("%sEntry", field.MapName)),
+		TypeName: pointer.String(mapEntryName(field.MapName)),
 	}
 
 	i, err := strconv.Atoi(field.FieldNumber)
@@ -454,9 +456,28 @@ func (gen *descriptorGen) genMapFieldDescriptor(
 	return fd, gen.genMapEntryType(field)
 }
 
+// from protobuf/internal/strs/strings.go
+func mapEntryName(s string) string {
+	var b []byte
+	upperNext := true
+	for _, c := range s {
+		switch {
+		case c == '_':
+			upperNext = true
+		case upperNext:
+			b = append(b, byte(unicode.ToUpper(c)))
+			upperNext = false
+		default:
+			b = append(b, byte(c))
+		}
+	}
+	b = append(b, "Entry"...)
+	return string(b)
+}
+
 func (gen *descriptorGen) genMapEntryType(field *parser.MapField) *descriptorpb.DescriptorProto {
 	entry := &descriptorpb.DescriptorProto{
-		Name:  pointer.String(fmt.Sprintf("%sEntry", field.MapName)),
+		Name:  pointer.String(mapEntryName(field.MapName)),
 		Field: []*descriptorpb.FieldDescriptorProto{},
 		Options: &descriptorpb.MessageOptions{
 			MapEntry: pointer.Bool(true),
@@ -539,11 +560,11 @@ FIELDS:
 				}
 			}
 			if pkgName == "" {
-				panic("this shouldn't happen")
+				log.Fatal("could not find package for type: ", typename)
 			}
 			targetFile, ok := fileMap[pkgName]
 			if !ok {
-				panic("this shouldn't happen")
+				log.Fatal("could not find file for package: ", pkgName)
 			}
 
 			parts := strings.SplitAfter(typename, pkgName+".")
