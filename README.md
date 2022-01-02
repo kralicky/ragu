@@ -11,6 +11,7 @@ It does not require any non-go dependencies **and does not shell out to other bi
 - Generates the same output as protoc
 - Removes unnecessary output directory configuration. Files are generated into
 the current directory by default, or into a directory specified with the `-o` flag.
+- Import .proto files using go modules
 
 ## Instructions (CLI)
 
