@@ -10,21 +10,20 @@ import (
 )
 
 var outDir string
-var grpc bool
 
 var rootCmd = &cobra.Command{
 	Use:   "ragu [proto files...]",
 	Short: "Generate Go protobuf code without protoc",
-	Example: `$ ragu types.proto               
-  # generates ./types.pb.go, ./types_grpc.pb.go
-$ ragu -o pkg/types types.proto  
-  # generates ./pkg/types/types.pb.go, ./pkg/types/types_grpc.pb.go
-$ ragu -o pkg/types --grpc=false types.proto foo.proto
-  # generates ./pkg/types/types.pb.go ./pkg/types/foo.pb.go`,
+	Example: `$ ragu has_services.proto               
+  # generates ./has_services.pb.go, ./has_services_grpc.pb.go
+$ ragu -o pkg/types has_services.proto  
+  # generates ./pkg/types/has_services.pb.go, ./pkg/types/has_services_grpc.pb.go
+$ ragu -o pkg/types no_services.proto no_services_2.proto
+  # generates ./pkg/types/no_services.pb.go ./pkg/types/no_services_2.pb.go`,
 	Args: cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		for _, arg := range args {
-			files, err := ragu.GenerateCode(arg, grpc)
+			files, err := ragu.GenerateCode(arg)
 			if err != nil {
 				return err
 			}
@@ -54,5 +53,4 @@ func Execute() {
 
 func init() {
 	rootCmd.Flags().StringVarP(&outDir, "output", "o", ".", "output directory")
-	rootCmd.Flags().BoolVar(&grpc, "grpc", true, "generate gRPC code")
 }

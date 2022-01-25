@@ -15,7 +15,7 @@ import (
 var Default = All
 
 func All() {
-	mg.SerialDeps(Vendor, Edit, Build)
+	mg.SerialDeps(Vendor, Build)
 }
 
 var (
@@ -60,20 +60,17 @@ func Vendor() (vendorErr error) {
 		defer wg.Done()
 		if err := download(
 			grpcGenDownloadURL,
-			"pkg/ragu/vendor_grpc.go",
+			"pkg/ragu/upstream_grpc.go",
 		); err != nil {
 			vendorErr = errors.Append(vendorErr, err)
 		}
+		sh.Run("sed", "-i",
+			"s/package main/package ragu/",
+			"pkg/ragu/upstream_grpc.go",
+		)
 	}()
 	wg.Wait()
 	return
-}
-
-func Edit() error {
-	return sh.Run("sed", "-i",
-		"s/package main/package ragu/",
-		"pkg/ragu/vendor_grpc.go",
-	)
 }
 
 func Build() error {

@@ -14,6 +14,7 @@ import (
 
 	"github.com/kralicky/ragu/internal/pointer"
 	"github.com/kralicky/ragu/pkg/machinery"
+	"github.com/kralicky/ragu/pkg/ragu/custom"
 	"github.com/yoheimuta/go-protoparser/v4"
 	gengo "google.golang.org/protobuf/cmd/protoc-gen-go/internal_gengo"
 	"google.golang.org/protobuf/compiler/protogen"
@@ -22,7 +23,7 @@ import (
 )
 
 // From protoc-gen-go-grpc/main.go
-const version = "1.1.0"
+const version = "1.2.0"
 
 var requireUnimplemented *bool = func() *bool {
 	b := true
@@ -125,13 +126,35 @@ func resolveDependencies(desc *descriptorpb.FileDescriptorProto) []*descriptorpb
 	return depsFiltered
 }
 
-func GenerateCode(input string, grpc bool) ([]*File, error) {
+type GenerateCodeOptions struct {
+	experimentalHideEmptyMessages bool
+}
+
+type GenerateCodeOption func(*GenerateCodeOptions)
+
+func (o *GenerateCodeOptions) Apply(opts ...GenerateCodeOption) {
+	for _, op := range opts {
+		op(o)
+	}
+}
+
+// Enables an experimental feature that will omit parameters and return values
+// of type "emptypb.Empty" from generated code. Enables more natural use of
+// gRPC methods that accept no arguments and/or return no values
+// (other than error).
+func ExperimentalHideEmptyMessages() GenerateCodeOption {
+	return func(o *GenerateCodeOptions) {
+		o.experimentalHideEmptyMessages = true
+	}
+}
+
+func GenerateCode(input string, raguOpts ...GenerateCodeOption) ([]*File, error) {
+	raguOptions := &GenerateCodeOptions{}
+	raguOptions.Apply(raguOpts...)
+
 	proto, err := machinery.ParseProto(input)
 	if err != nil {
 		return nil, err
-	}
-	if proto.Syntax.ProtobufVersion != "proto3" {
-		return nil, errors.New("only proto3 is supported")
 	}
 
 	desc := machinery.GenerateDescriptor(proto)
@@ -145,8 +168,8 @@ func GenerateCode(input string, grpc bool) ([]*File, error) {
 		ProtoFile:      allProtos,
 		CompilerVersion: &pluginpb.Version{
 			Major: pointer.Int32(0),
-			Minor: pointer.Int32(1),
-			Patch: pointer.Int32(0),
+			Minor: pointer.Int32(2),
+			Patch: pointer.Int32(3),
 		},
 	}
 
@@ -159,7 +182,9 @@ func GenerateCode(input string, grpc bool) ([]*File, error) {
 	for _, f := range plugin.Files {
 		if f.Generate {
 			gengo.GenerateFile(plugin, f)
-			if grpc {
+			if raguOptions.experimentalHideEmptyMessages {
+				custom.GenerateFile(plugin, f)
+			} else {
 				generateFile(plugin, f)
 			}
 		}
