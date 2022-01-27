@@ -533,16 +533,21 @@ func (gen *descriptorGen) setOption(options protoreflect.ProtoMessage, name stri
 
 		// this implementation is an educated guess, docs for this are impossible
 		// to decipher
-		extType, err := protoregistry.GlobalTypes.FindExtensionByName(protoreflect.FullName(name))
-		if err != nil {
-			log.Fatalf("could not find extension %q: %v", name, err)
+		for _, namePart := range uo.Name {
+			if namePart.GetIsExtension() {
+				extensionName := namePart.GetNamePart()
+				extType, err := protoregistry.GlobalTypes.FindExtensionByName(protoreflect.FullName(extensionName))
+				if err != nil {
+					log.Fatalf("could not find extension %q: %v", extensionName, err)
+				}
+				msg := extType.New().Message().Interface()
+				extensionData := strings.Trim(uo.GetAggregateValue(), "{}")
+				if err := prototext.Unmarshal([]byte(extensionData), msg); err != nil {
+					log.Fatalf("could not unmarshal extension %q from text %s: %v", extensionName, extensionData, err)
+				}
+				proto.SetExtension(options, extType, msg)
+			}
 		}
-		msg := extType.New().Message().Interface()
-		extensionData := strings.Trim(uo.GetAggregateValue(), "{}")
-		if err := prototext.Unmarshal([]byte(extensionData), msg); err != nil {
-			log.Fatalf("could not unmarshal extension %q from text %s: %v", name, extensionData, err)
-		}
-		proto.SetExtension(options, extType, msg)
 	} else {
 		var setValue func(v interface{})
 		if field.Kind() == reflect.Ptr {
