@@ -1,16 +1,20 @@
 package machinery
 
 import (
-	"encoding/json"
 	"fmt"
 	"log"
 	"os"
+	"reflect"
 	"strconv"
 	"strings"
 	"unicode"
 
 	"github.com/kralicky/ragu/internal/pointer"
 	"github.com/yoheimuta/go-protoparser/v4/parser"
+	"google.golang.org/protobuf/encoding/prototext"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/reflect/protoreflect"
+	"google.golang.org/protobuf/reflect/protoregistry"
 	"google.golang.org/protobuf/types/descriptorpb"
 )
 
@@ -504,10 +508,149 @@ func (gen *descriptorGen) genMapEntryType(field *parser.MapField) *descriptorpb.
 	return entry
 }
 
-func (gen *descriptorGen) setOption(options interface{}, name string, value string) {
-	if err := json.Unmarshal([]byte(fmt.Sprintf(`{"%s":%s}`, name, value)), options); err != nil {
-		panic(err)
+func (gen *descriptorGen) setOption(options protoreflect.ProtoMessage, name string, value string) {
+	// check if options has a field with the given name
+	val := reflect.ValueOf(options).Elem()
+	if !val.IsValid() {
+		panic(fmt.Sprintf("invalid options type: %v", options))
 	}
+	valType := reflect.TypeOf(options).Elem()
+	field := val.FieldByNameFunc(func(s string) bool {
+		field, _ := valType.FieldByName(s)
+		jsonTag := field.Tag.Get("json")
+		return strings.Split(jsonTag, ",")[0] == name
+	})
+	if !field.IsValid() {
+		// check if options has a field called UninterpretedOption
+		field = val.FieldByName("UninterpretedOption")
+		if !field.IsValid() {
+			panic(fmt.Sprintf("invalid options type: %v", options))
+		}
+		// add a new uninterpreted option
+		uo := parseUninterpretedOption(name, value)
+		uoValue := reflect.ValueOf(uo)
+		field.Set(reflect.Append(field, uoValue))
+
+		// this implementation is an educated guess, docs for this are impossible
+		// to decipher
+		extType, err := protoregistry.GlobalTypes.FindExtensionByName(protoreflect.FullName(name))
+		if err != nil {
+			log.Fatalf("could not find extension %q: %v", name, err)
+		}
+		msg := extType.New().Message().Interface()
+		extensionData := strings.Trim(uo.GetAggregateValue(), "{}")
+		if err := prototext.Unmarshal([]byte(extensionData), msg); err != nil {
+			log.Fatalf("could not unmarshal extension %q from text %s: %v", name, extensionData, err)
+		}
+		proto.SetExtension(options, extType, msg)
+	} else {
+		var setValue func(v interface{})
+		if field.Kind() == reflect.Ptr {
+			setValue = func(v interface{}) {
+				p := reflect.New(field.Type().Elem())
+				switch p.Interface().(type) {
+				case *descriptorpb.FileOptions_OptimizeMode:
+					p.Elem().Set(reflect.ValueOf(descriptorpb.FileOptions_OptimizeMode(descriptorpb.FileOptions_OptimizeMode_value[value])))
+				default:
+					p.Elem().Set(reflect.ValueOf(v))
+					field.Set(p)
+				}
+			}
+		} else {
+			setValue = func(v interface{}) {
+				field.Set(reflect.ValueOf(v))
+			}
+		}
+		// figure out what the value is
+		if strings.HasPrefix(value, "\"") && strings.HasSuffix(value, "\"") {
+			// string value
+			setValue(value[1 : len(value)-1])
+		} else if b, err := strconv.ParseBool(value); err == nil {
+			// bool value
+			setValue(b)
+		} else if d, err := strconv.ParseFloat(value, 64); err == nil {
+			// double value
+			setValue(d)
+		} else if i, err := strconv.ParseInt(value, 0, 64); err == nil {
+			// int64 value
+			setValue(i)
+		} else if strings.Contains(value, "{") {
+			// aggregate value
+			setValue(value)
+		} else {
+			// identifier value?
+			setValue(value)
+		}
+	}
+}
+
+func parseUninterpretedOption(name, value string) *descriptorpb.UninterpretedOption {
+	// The name of the uninterpreted option.  Each string represents a segment in
+	// a dot-separated name.  is_extension is true iff a segment represents an
+	// extension (denoted with parentheses in options specs in .proto files).
+	// E.g.,{ ["foo", false], ["bar.baz", true], ["qux", false] } represents
+	// "foo.(bar.baz).qux".
+	nameParts := []*descriptorpb.UninterpretedOption_NamePart{}
+
+	parts := strings.Split(name, ".")
+	// if any part starts with a '(', join it with any subsequent parts until we
+	// encounter a part that ends with ')'
+	var currentName string
+	for _, part := range parts {
+		if len(part) == 0 {
+			continue
+		}
+		if part[0] == '(' {
+			currentName += part
+			continue
+		}
+		if currentName != "" {
+			if part[len(part)-1] == ')' {
+				currentName += "." + part
+				nameParts = append(nameParts, &descriptorpb.UninterpretedOption_NamePart{
+					NamePart:    pointer.String(strings.Trim(currentName, "()")),
+					IsExtension: pointer.Bool(true),
+				})
+				currentName = ""
+				continue
+			}
+			currentName += "." + part
+		} else {
+			nameParts = append(nameParts, &descriptorpb.UninterpretedOption_NamePart{
+				NamePart:    pointer.String(part),
+				IsExtension: pointer.Bool(false),
+			})
+		}
+	}
+	uo := &descriptorpb.UninterpretedOption{
+		Name: nameParts,
+	}
+	// figure out what the value is
+	if strings.HasPrefix(value, "\"") && strings.HasSuffix(value, "\"") {
+		// string value
+		uo.StringValue = []byte(value[1 : len(value)-1])
+	} else if value == "true" || value == "false" {
+		// bool value
+		uo.StringValue = []byte(value)
+	} else if d, err := strconv.ParseFloat(value, 64); err == nil {
+		// double value
+		uo.DoubleValue = &d
+	} else if i, err := strconv.ParseInt(value, 0, 64); err == nil {
+		// int64 value
+		if i >= 0 {
+			uintValue := uint64(i)
+			uo.PositiveIntValue = &uintValue
+		} else {
+			uo.NegativeIntValue = &i
+		}
+	} else if strings.Contains(value, "{") {
+		// aggregate value
+		uo.AggregateValue = pointer.String(value)
+	} else {
+		// identifier value?
+		uo.IdentifierValue = pointer.String(value)
+	}
+	return uo
 }
 
 func (gen *descriptorGen) genOneofDescriptor(

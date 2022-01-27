@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,6 +13,9 @@ import (
 
 	"golang.org/x/mod/module"
 
+	"github.com/grpc-ecosystem/grpc-gateway/v2/pkg/codegenerator"
+	"github.com/grpc-ecosystem/grpc-gateway/v2/pkg/descriptor"
+	"github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-grpc-gateway/pkg/gengateway"
 	"github.com/kralicky/ragu/internal/pointer"
 	"github.com/kralicky/ragu/pkg/machinery"
 	"github.com/kralicky/ragu/pkg/ragu/custom"
@@ -67,6 +71,22 @@ func resolveDependencies(desc *descriptorpb.FileDescriptorProto) []*descriptorpb
 			proto, err := protoparser.Parse(reader, protoparser.WithFilename(dep))
 			if err != nil {
 				panic(err)
+			}
+			importedDesc := machinery.GenerateDescriptor(proto)
+			deps = append(deps, resolveDependencies(importedDesc)...)
+		} else if strings.HasPrefix(dep, "google/api/") {
+			log.Println("Downloading dependency", dep)
+			// download from the googleapis repo
+			baseUrl := "https://raw.githubusercontent.com/googleapis/googleapis/master/"
+			protoUrl := baseUrl + dep
+			resp, err := http.Get(protoUrl)
+			if err != nil {
+				log.Fatalf("failed to download %s: %v", protoUrl, err)
+			}
+			defer resp.Body.Close()
+			proto, err := protoparser.Parse(resp.Body, protoparser.WithFilename(dep))
+			if err != nil {
+				log.Fatalf("failed to parse %s: %v", protoUrl, err)
 			}
 			importedDesc := machinery.GenerateDescriptor(proto)
 			deps = append(deps, resolveDependencies(importedDesc)...)
@@ -189,6 +209,9 @@ func GenerateCode(input string, raguOpts ...GenerateCodeOption) ([]*File, error)
 			}
 		}
 	}
+	if err := genGrpcGateway(plugin); err != nil {
+		return nil, err
+	}
 
 	resp := plugin.Response()
 	if resp.Error != nil {
@@ -213,4 +236,42 @@ func GenerateCode(input string, raguOpts ...GenerateCodeOption) ([]*File, error)
 		}
 	}
 	return resp.File, nil
+}
+
+func genGrpcGateway(gen *protogen.Plugin) error {
+	reg := descriptor.NewRegistry()
+
+	codegenerator.SetSupportedFeaturesOnPluginGen(gen)
+
+	generator := gengateway.New(reg, true, "Handler", false, false)
+
+	if err := reg.LoadFromPlugin(gen); err != nil {
+		return err
+	}
+
+	unboundHTTPRules := reg.UnboundExternalHTTPRules()
+	if len(unboundHTTPRules) != 0 {
+		return fmt.Errorf("HTTP rules without a matching selector: %s", strings.Join(unboundHTTPRules, ", "))
+	}
+
+	targets := make([]*descriptor.File, len(gen.Request.FileToGenerate))
+	for i, target := range gen.Request.FileToGenerate {
+		f, err := reg.LookupFile(target)
+		if err != nil {
+			return err
+		}
+		targets[i] = f
+	}
+
+	files, err := generator.Generate(targets)
+	if err != nil {
+		return err
+	}
+	for _, f := range files {
+		genFile := gen.NewGeneratedFile(f.GetName(), protogen.GoImportPath(f.GoPkg.Path))
+		if _, err := genFile.Write([]byte(f.GetContent())); err != nil {
+			return err
+		}
+	}
+	return nil
 }
