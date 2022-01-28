@@ -16,6 +16,7 @@ import (
 	"github.com/grpc-ecosystem/grpc-gateway/v2/pkg/codegenerator"
 	"github.com/grpc-ecosystem/grpc-gateway/v2/pkg/descriptor"
 	"github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-grpc-gateway/pkg/gengateway"
+	"github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2/pkg/genopenapi"
 	"github.com/kralicky/ragu/internal/pointer"
 	"github.com/kralicky/ragu/pkg/machinery"
 	"github.com/kralicky/ragu/pkg/ragu/custom"
@@ -74,7 +75,7 @@ func resolveDependencies(desc *descriptorpb.FileDescriptorProto) []*descriptorpb
 			}
 			importedDesc := machinery.GenerateDescriptor(proto)
 			deps = append(deps, resolveDependencies(importedDesc)...)
-		} else if strings.HasPrefix(dep, "google/api/") {
+		} else if strings.HasPrefix(dep, "google/") {
 			log.Println("Downloading dependency", dep)
 			// download from the googleapis repo
 			baseUrl := "https://raw.githubusercontent.com/googleapis/googleapis/master/"
@@ -260,6 +261,7 @@ func genGrpcGateway(gen *protogen.Plugin) error {
 		if err != nil {
 			return err
 		}
+		f.SourceCodeInfo = &descriptorpb.SourceCodeInfo{}
 		targets[i] = f
 	}
 
@@ -268,6 +270,23 @@ func genGrpcGateway(gen *protogen.Plugin) error {
 		return err
 	}
 	for _, f := range files {
+		genFile := gen.NewGeneratedFile(f.GetName(), protogen.GoImportPath(f.GoPkg.Path))
+		if _, err := genFile.Write([]byte(f.GetContent())); err != nil {
+			return err
+		}
+	}
+
+	g := genopenapi.New(reg)
+	// silence warning about missing sourcecodeinfo, which is the only instance
+	// of fmt.Fprintln in Generate
+	oldStdErr := os.Stderr
+	os.Stderr, _ = os.OpenFile(os.DevNull, os.O_WRONLY, 0)
+	out, err := g.Generate(targets)
+	os.Stderr = oldStdErr
+	if err != nil {
+		return err
+	}
+	for _, f := range out {
 		genFile := gen.NewGeneratedFile(f.GetName(), protogen.GoImportPath(f.GoPkg.Path))
 		if _, err := genFile.Write([]byte(f.GetContent())); err != nil {
 			return err
