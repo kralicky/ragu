@@ -276,20 +276,22 @@ func genGrpcGateway(gen *protogen.Plugin) error {
 		}
 	}
 
-	g := genopenapi.New(reg)
-	// silence warning about missing sourcecodeinfo, which is the only instance
-	// of fmt.Fprintln in Generate
-	oldStdErr := os.Stderr
-	os.Stderr, _ = os.OpenFile(os.DevNull, os.O_WRONLY, 0)
-	out, err := g.Generate(targets)
-	os.Stderr = oldStdErr
-	if err != nil {
-		return err
-	}
-	for _, f := range out {
-		genFile := gen.NewGeneratedFile(f.GetName(), protogen.GoImportPath(f.GoPkg.Path))
-		if _, err := genFile.Write([]byte(f.GetContent())); err != nil {
+	if len(files) > 0 {
+		g := genopenapi.New(reg)
+		// silence warning about missing sourcecodeinfo, which is the only instance
+		// of fmt.Fprintln in Generate
+		oldStdErr := os.Stderr
+		os.Stderr, _ = os.OpenFile(os.DevNull, os.O_WRONLY, 0)
+		out, err := g.Generate(targets)
+		os.Stderr = oldStdErr
+		if err != nil {
 			return err
+		}
+		for _, f := range out {
+			genFile := gen.NewGeneratedFile(f.GetName(), protogen.GoImportPath(f.GoPkg.Path))
+			if _, err := genFile.Write([]byte(f.GetContent())); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
