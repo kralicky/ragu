@@ -4,13 +4,13 @@ go 1.17
 
 require (
 	emperror.dev/errors v0.8.0
-	github.com/grpc-ecosystem/grpc-gateway/v2 v2.0.0-00010101000000-000000000000
+	github.com/grpc-ecosystem/grpc-gateway/v2 v2.7.3
+	github.com/kralicky/grpc-gateway/v2 v2.7.3-0.20220201000610-57444701bbdc
 	github.com/magefile/mage v1.12.1
-	github.com/onsi/ginkgo/v2 v2.1.0
-	github.com/onsi/gomega v1.18.0
 	github.com/spf13/cobra v1.3.0
 	github.com/yoheimuta/go-protoparser/v4 v4.5.0
 	golang.org/x/mod v0.5.0
+	google.golang.org/genproto v0.0.0-20220126215142-9970aeb2e350
 	google.golang.org/grpc v1.44.0
 	google.golang.org/protobuf v1.27.1
 	k8s.io/api v0.23.2
@@ -35,7 +35,6 @@ require (
 	golang.org/x/sys v0.0.0-20211216021012-1d35b9e2eb4e // indirect
 	golang.org/x/text v0.3.7 // indirect
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
-	google.golang.org/genproto v0.0.0-20220118154757-00ab72f36ad5 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	k8s.io/apimachinery v0.23.2 // indirect
@@ -45,5 +44,3 @@ require (
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.1 // indirect
 	sigs.k8s.io/yaml v1.3.0 // indirect
 )
-
-replace github.com/grpc-ecosystem/grpc-gateway/v2 => github.com/kralicky/grpc-gateway/v2 v2.7.4-0.20220127013955-a5d3dbc63a62

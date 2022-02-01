@@ -13,10 +13,10 @@ import (
 
 	"golang.org/x/mod/module"
 
-	"github.com/grpc-ecosystem/grpc-gateway/v2/pkg/codegenerator"
-	"github.com/grpc-ecosystem/grpc-gateway/v2/pkg/descriptor"
-	"github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-grpc-gateway/pkg/gengateway"
-	"github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2/pkg/genopenapi"
+	"github.com/kralicky/grpc-gateway/v2/pkg/codegenerator"
+	"github.com/kralicky/grpc-gateway/v2/pkg/descriptor"
+	"github.com/kralicky/grpc-gateway/v2/protoc-gen-grpc-gateway/pkg/gengateway"
+	"github.com/kralicky/grpc-gateway/v2/protoc-gen-openapiv2/pkg/genopenapi"
 	"github.com/kralicky/ragu/internal/pointer"
 	"github.com/kralicky/ragu/pkg/machinery"
 	"github.com/kralicky/ragu/pkg/ragu/custom"
