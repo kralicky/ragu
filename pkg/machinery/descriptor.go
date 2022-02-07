@@ -541,7 +541,10 @@ func (gen *descriptorGen) setOption(options protoreflect.ProtoMessage, name stri
 					log.Fatalf("could not find extension %q: %v", extensionName, err)
 				}
 				msg := extType.New().Message().Interface()
-				extensionData := strings.Trim(uo.GetAggregateValue(), "{}")
+				extensionData := uo.GetAggregateValue()
+				if extensionData[0] == '{' && extensionData[len(extensionData)-1] == '}' {
+					extensionData = extensionData[1 : len(extensionData)-1]
+				}
 				if err := prototext.Unmarshal([]byte(extensionData), msg); err != nil {
 					log.Fatalf("could not unmarshal extension %q from text %s: %v", extensionName, extensionData, err)
 				}
