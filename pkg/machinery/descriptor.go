@@ -536,6 +536,10 @@ func (gen *descriptorGen) setOption(options protoreflect.ProtoMessage, name stri
 		for _, namePart := range uo.Name {
 			if namePart.GetIsExtension() {
 				extensionName := namePart.GetNamePart()
+				if strings.HasPrefix(extensionName, "gogoproto.") {
+					// skip gogoproto extensions
+					continue
+				}
 				extType, err := protoregistry.GlobalTypes.FindExtensionByName(protoreflect.FullName(extensionName))
 				if err != nil {
 					log.Fatalf("could not find extension %q: %v", extensionName, err)
