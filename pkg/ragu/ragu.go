@@ -128,7 +128,9 @@ func resolveDependencies(desc *descriptorpb.FileDescriptorProto) []*descriptorpb
 							}
 							desc.Dependency[i] = proto.Meta.Filename
 							moduleDesc := machinery.GenerateDescriptor(proto)
-							moduleDesc.Options.GoPackage = pointer.String(pkg.ImportPath)
+							if moduleDesc.Options.GetGoPackage() == "" {
+								moduleDesc.Options.GoPackage = pointer.String(pkg.ImportPath)
+							}
 							deps = append(deps, resolveDependencies(moduleDesc)...)
 							continue
 						} else {
