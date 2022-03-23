@@ -724,7 +724,8 @@ FIELDS:
 
 			parts := strings.SplitAfter(typename, pkgName+".")
 			if len(parts) != 2 {
-				panic("bug")
+				actualPkg, name, _ := strings.Cut(typename, ".")
+				log.Fatalf("mismatched package names for type: expected %[1]s.%[3]s, got %[2]s.%[3]s", pkgName, actualPkg, name)
 			}
 			parts = strings.Split(parts[1], ".")
 
