@@ -6,7 +6,9 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"go/build"
@@ -100,12 +102,24 @@ func resolveDependencies(desc *descriptorpb.FileDescriptorProto) []*descriptorpb
 					modulePath := dep[:last]
 					if err := module.CheckImportPath(modulePath); err == nil {
 						// check module cache for the file
+						var protoFilePath string
 						pkg, err := build.Default.Import(modulePath, "", 0)
 						if err != nil {
-							log.Fatal(err)
+							cmd := exec.Command("go", "list", "-m", "-f", "{{.Dir}}", modulePath)
+							cmd.Env = append(os.Environ(),
+								"GOOS="+runtime.GOOS,
+								"GOARCH="+runtime.GOARCH,
+								"GOROOT="+runtime.GOROOT(),
+							)
+							if out, err := cmd.Output(); err != nil {
+								log.Fatalf("go/build: go list %s: %v\n%s\n", modulePath, err, err.Error())
+							} else {
+								protoFilePath = filepath.Join(strings.TrimSpace(string(out)), filename)
+							}
+						} else {
+							protoFilePath = filepath.Join(pkg.Dir, filename)
 						}
 						// Check if proto file exists
-						protoFilePath := filepath.Join(pkg.Dir, filename)
 						if _, err := os.Stat(protoFilePath); err == nil {
 							// File exists
 							proto, err := machinery.ParseProto(protoFilePath)
