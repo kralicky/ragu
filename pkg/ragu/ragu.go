@@ -19,9 +19,9 @@ import (
 	"github.com/kralicky/grpc-gateway/v2/pkg/descriptor"
 	"github.com/kralicky/grpc-gateway/v2/protoc-gen-grpc-gateway/pkg/gengateway"
 	"github.com/kralicky/grpc-gateway/v2/protoc-gen-openapiv2/pkg/genopenapi"
-	"github.com/kralicky/ragu/internal/pointer"
 	"github.com/kralicky/ragu/pkg/machinery"
 	"github.com/kralicky/ragu/pkg/ragu/custom"
+	"github.com/samber/lo"
 	"github.com/yoheimuta/go-protoparser/v4"
 	gengo "google.golang.org/protobuf/cmd/protoc-gen-go/internal_gengo"
 	"google.golang.org/protobuf/compiler/protogen"
@@ -129,7 +129,7 @@ func resolveDependencies(desc *descriptorpb.FileDescriptorProto) []*descriptorpb
 							desc.Dependency[i] = proto.Meta.Filename
 							moduleDesc := machinery.GenerateDescriptor(proto)
 							if moduleDesc.Options.GetGoPackage() == "" {
-								moduleDesc.Options.GoPackage = pointer.String(pkg.ImportPath)
+								moduleDesc.Options.GoPackage = &pkg.ImportPath
 							}
 							deps = append(deps, resolveDependencies(moduleDesc)...)
 							continue
@@ -204,9 +204,9 @@ func GenerateCode(input string, raguOpts ...GenerateCodeOption) ([]*File, error)
 		FileToGenerate: []string{input}, // Only generate the input file
 		ProtoFile:      allProtos,
 		CompilerVersion: &pluginpb.Version{
-			Major: pointer.Int32(0),
-			Minor: pointer.Int32(2),
-			Patch: pointer.Int32(3),
+			Major: lo.ToPtr[int32](0),
+			Minor: lo.ToPtr[int32](2),
+			Patch: lo.ToPtr[int32](3),
 		},
 	}
 

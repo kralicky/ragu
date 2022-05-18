@@ -9,7 +9,7 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/kralicky/ragu/internal/pointer"
+	"github.com/samber/lo"
 	"github.com/yoheimuta/go-protoparser/v4/parser"
 	"google.golang.org/protobuf/encoding/prototext"
 	"google.golang.org/protobuf/proto"
@@ -34,8 +34,8 @@ type descriptorGen struct {
 
 func GenerateDescriptor(proto *parser.Proto) *descriptorpb.FileDescriptorProto {
 	desc := &descriptorpb.FileDescriptorProto{
-		Name:    pointer.String(proto.Meta.Filename),
-		Syntax:  pointer.String(stripQuotes(proto.Syntax.ProtobufVersion)),
+		Name:    &proto.Meta.Filename,
+		Syntax:  lo.ToPtr(stripQuotes(proto.Syntax.ProtobufVersion)),
 		Options: &descriptorpb.FileOptions{},
 	}
 	gen := &descriptorGen{
@@ -93,7 +93,7 @@ func (gen *descriptorGen) resolveTypeNames(msg *descriptorpb.DescriptorProto, st
 					// code generator figure it out later
 					field.Type = nil
 					// fully qualify the type name
-					field.TypeName = pointer.String("." + *field.TypeName)
+					field.TypeName = lo.ToPtr("." + *field.TypeName)
 				}
 				continue
 			}
@@ -226,7 +226,7 @@ func (gen *descriptorGen) genMessageDescriptor(msg *parser.Message) *descriptorp
 			desc.OneofDecl = append(desc.OneofDecl, oneofDesc)
 			// Populate the oneof index in each field
 			for _, field := range fields {
-				field.OneofIndex = pointer.Int32(int32(len(desc.OneofDecl) - 1))
+				field.OneofIndex = lo.ToPtr(int32(len(desc.OneofDecl) - 1))
 			}
 			desc.Field = append(desc.Field, fields...)
 		case *parser.Field:
@@ -263,7 +263,7 @@ func (gen *descriptorGen) genEnumDescriptor(enum *parser.Enum) *descriptorpb.Enu
 			}
 			val := &descriptorpb.EnumValueDescriptorProto{
 				Name:   &entry.Ident,
-				Number: pointer.Int32(int32(num)),
+				Number: lo.ToPtr(int32(num)),
 			}
 			// Add options
 			for _, v := range entry.EnumValueOptions {
@@ -310,8 +310,8 @@ func (gen *descriptorGen) genMethodDescriptor(rpc *parser.RPC) *descriptorpb.Met
 		Name:            &rpc.RPCName,
 		InputType:       &requestType,
 		OutputType:      &responseType,
-		ClientStreaming: pointer.Bool(rpc.RPCRequest.IsStream),
-		ServerStreaming: pointer.Bool(rpc.RPCResponse.IsStream),
+		ClientStreaming: lo.ToPtr(rpc.RPCRequest.IsStream),
+		ServerStreaming: lo.ToPtr(rpc.RPCResponse.IsStream),
 		Options:         &descriptorpb.MethodOptions{},
 	}
 	// Add options
@@ -386,7 +386,7 @@ func (gen *descriptorGen) genFieldDescriptor(field *parser.Field) *descriptorpb.
 	if err != nil {
 		panic(err)
 	}
-	fd.Number = pointer.Int32(int32(i))
+	fd.Number = lo.ToPtr(int32(i))
 
 	fd.Type = gen.typeId(field.Type)
 	if !isBuiltInType(field.Type) {
@@ -419,7 +419,7 @@ func (gen *descriptorGen) genOneofFieldDescriptor(field *parser.OneofField) *des
 	if err != nil {
 		panic(err)
 	}
-	fd.Number = pointer.Int32(int32(i))
+	fd.Number = lo.ToPtr(int32(i))
 
 	fd.Type = gen.typeId(field.Type)
 	if !isBuiltInType(field.Type) {
@@ -440,16 +440,16 @@ func (gen *descriptorGen) genMapFieldDescriptor(
 	field *parser.MapField,
 ) (*descriptorpb.FieldDescriptorProto, *descriptorpb.DescriptorProto) {
 	fd := &descriptorpb.FieldDescriptorProto{
-		Name:     pointer.String(field.MapName),
+		Name:     &field.MapName,
 		Type:     descriptorpb.FieldDescriptorProto_TYPE_MESSAGE.Enum(),
-		TypeName: pointer.String(mapEntryName(field.MapName)),
+		TypeName: lo.ToPtr(mapEntryName(field.MapName)),
 	}
 
 	i, err := strconv.Atoi(field.FieldNumber)
 	if err != nil {
 		panic(err)
 	}
-	fd.Number = pointer.Int32(int32(i))
+	fd.Number = lo.ToPtr(int32(i))
 	repeated := descriptorpb.FieldDescriptorProto_LABEL_REPEATED // this is set for maps
 	fd.Label = &repeated
 
@@ -481,24 +481,24 @@ func mapEntryName(s string) string {
 
 func (gen *descriptorGen) genMapEntryType(field *parser.MapField) *descriptorpb.DescriptorProto {
 	entry := &descriptorpb.DescriptorProto{
-		Name:  pointer.String(mapEntryName(field.MapName)),
+		Name:  lo.ToPtr(mapEntryName(field.MapName)),
 		Field: []*descriptorpb.FieldDescriptorProto{},
 		Options: &descriptorpb.MessageOptions{
-			MapEntry: pointer.Bool(true),
+			MapEntry: lo.ToPtr(true),
 		},
 	}
 	entry.Field = append(entry.Field, &descriptorpb.FieldDescriptorProto{
-		Name:     pointer.String("key"),
-		Number:   pointer.Int32(1),
+		Name:     lo.ToPtr("key"),
+		Number:   lo.ToPtr[int32](1),
 		Label:    descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL.Enum(),
 		Type:     gen.typeId(field.KeyType), // always a built-in type
-		JsonName: pointer.String("key"),
+		JsonName: lo.ToPtr("key"),
 	})
 	value := &descriptorpb.FieldDescriptorProto{
-		Name:     pointer.String("value"),
-		Number:   pointer.Int32(2),
+		Name:     lo.ToPtr("value"),
+		Number:   lo.ToPtr[int32](2),
 		Label:    descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL.Enum(),
-		JsonName: pointer.String("value"),
+		JsonName: lo.ToPtr("value"),
 	}
 	value.Type = gen.typeId(field.Type)
 	if !isBuiltInType(field.Type) {
@@ -620,8 +620,8 @@ func parseUninterpretedOption(name, value string) *descriptorpb.UninterpretedOpt
 			if part[len(part)-1] == ')' {
 				currentName += "." + part
 				nameParts = append(nameParts, &descriptorpb.UninterpretedOption_NamePart{
-					NamePart:    pointer.String(strings.Trim(currentName, "()")),
-					IsExtension: pointer.Bool(true),
+					NamePart:    lo.ToPtr(strings.Trim(currentName, "()")),
+					IsExtension: lo.ToPtr(true),
 				})
 				currentName = ""
 				continue
@@ -629,8 +629,8 @@ func parseUninterpretedOption(name, value string) *descriptorpb.UninterpretedOpt
 			currentName += "." + part
 		} else {
 			nameParts = append(nameParts, &descriptorpb.UninterpretedOption_NamePart{
-				NamePart:    pointer.String(part),
-				IsExtension: pointer.Bool(false),
+				NamePart:    &part,
+				IsExtension: lo.ToPtr(false),
 			})
 		}
 	}
@@ -657,10 +657,10 @@ func parseUninterpretedOption(name, value string) *descriptorpb.UninterpretedOpt
 		}
 	} else if strings.Contains(value, "{") {
 		// aggregate value
-		uo.AggregateValue = pointer.String(value)
+		uo.AggregateValue = &value
 	} else {
 		// identifier value?
-		uo.IdentifierValue = pointer.String(value)
+		uo.IdentifierValue = &value
 	}
 	return uo
 }

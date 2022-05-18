@@ -19,8 +19,9 @@ func All() {
 }
 
 var (
-	protoDownloadURL   = "https://raw.githubusercontent.com/protocolbuffers/protobuf/master/src/google/protobuf"
-	grpcGenDownloadURL = "https://raw.githubusercontent.com/grpc/grpc-go/master/cmd/protoc-gen-go-grpc/grpc.go"
+	googleApisDownloadURL = "https://raw.githubusercontent.com/googleapis/googleapis/master/google/api"
+	protoDownloadURL      = "https://raw.githubusercontent.com/protocolbuffers/protobuf/master/src/google/protobuf"
+	grpcGenDownloadURL    = "https://raw.githubusercontent.com/grpc/grpc-go/master/cmd/protoc-gen-go-grpc/grpc.go"
 )
 
 func download(url string, target string) error {
@@ -41,6 +42,10 @@ func Vendor() (vendorErr error) {
 		"type.proto",
 		"wrappers.proto",
 	}
+	googleApis := []string{
+		"annotations.proto",
+		"http.proto",
+	}
 
 	wg := sync.WaitGroup{}
 	for _, filename := range wellKnown {
@@ -50,6 +55,18 @@ func Vendor() (vendorErr error) {
 			if err := download(
 				path.Join(protoDownloadURL, filename),
 				filepath.Join("pkg/machinery/google/protobuf", filename),
+			); err != nil {
+				vendorErr = errors.Append(vendorErr, err)
+			}
+		}(filename)
+	}
+	for _, filename := range googleApis {
+		wg.Add(1)
+		go func(filename string) {
+			defer wg.Done()
+			if err := download(
+				path.Join(googleApisDownloadURL, filename),
+				filepath.Join("pkg/machinery/google/api", filename),
 			); err != nil {
 				vendorErr = errors.Append(vendorErr, err)
 			}
