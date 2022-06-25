@@ -1,0 +1,11 @@
+syntax = "proto3";
+option go_package = "github.com/kralicky/ragu/v2/pkg/ragu/testdata/pkg2";
+import "github.com/kralicky/ragu/v2/pkg/ragu/testdata/pkg1/test_1.proto";
+import "github.com/kralicky/ragu/v2/pkg/ragu/testdata/pkg1/test_2.proto";
+
+package pkg2;
+
+message Test3 {
+  pkg1.Test1 A = 1;
+  pkg1.Test2 B = 2;
+}

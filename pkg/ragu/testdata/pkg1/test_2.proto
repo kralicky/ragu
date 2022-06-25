@@ -1,0 +1,9 @@
+syntax = "proto3";
+option go_package = "github.com/kralicky/ragu/v2/pkg/ragu/testdata/pkg1";
+import "google/protobuf/empty.proto";
+
+package pkg1;
+
+message Test2 {
+  google.protobuf.Empty A = 1;
+}

@@ -1,0 +1,9 @@
+syntax = "proto3";
+option go_package = "github.com/kralicky/ragu/v2/pkg/ragu/testdata/pkg1";
+
+package pkg1;
+
+message Test1 {
+  string A = 1;
+  int32 B = 2;
+}
