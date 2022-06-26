@@ -3,8 +3,11 @@ module github.com/kralicky/ragu/v2
 go 1.18
 
 require (
+	github.com/flosch/pongo2/v6 v6.0.0
+	github.com/iancoleman/strcase v0.2.0
 	github.com/jhump/protoreflect v1.12.0
 	github.com/kralicky/grpc-gateway/v2 v2.7.3-0.20220201000610-57444701bbdc
+	github.com/mitchellh/mapstructure v1.5.0
 	github.com/samber/lo v1.21.0
 	golang.org/x/mod v0.6.0-dev.0.20220106191415-9b9b3d81d5e3
 	google.golang.org/protobuf v1.28.0

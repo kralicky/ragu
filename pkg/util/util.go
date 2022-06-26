@@ -1,4 +1,4 @@
-package ragu
+package util
 
 import (
 	"fmt"
@@ -20,8 +20,12 @@ func CallingFuncPackage() (*build.Package, error) {
 	return build.Default.Import(pkg, ".", build.FindOnly)
 }
 
-func apply[T any, R any](fn func(T) R) func(T, int) R {
-	return func(t T, _ int) R {
-		return fn(t)
+func Map[T any, R any](collection []T, iteratee func(T) R) []R {
+	result := make([]R, len(collection))
+
+	for i, item := range collection {
+		result[i] = iteratee(item)
 	}
+
+	return result
 }

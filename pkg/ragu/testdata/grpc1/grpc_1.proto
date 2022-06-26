@@ -1,0 +1,18 @@
+syntax = "proto3";
+option go_package = "github.com/kralicky/ragu/v2/pkg/ragu/testdata/grpc1";
+
+package grpc1;
+
+// Message Comment
+message Test {
+  // Field Comment A
+  string A = 1;
+  // Field Comment B
+  int32 B = 2;
+}
+
+// Service Comment
+service Service1 {
+  // Method Comment
+  rpc Testing(Test) returns (Test);
+}

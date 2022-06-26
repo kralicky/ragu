@@ -12,11 +12,14 @@ func TestGenerateCode(t *testing.T) {
 		ragu.FromFile("testdata/pkg1/test_1.proto"),
 		ragu.FromFile("testdata/pkg1/test_2.proto"),
 		ragu.FromFile("testdata/pkg2/test_3.proto"),
+		ragu.FromFile("testdata/grpc1/grpc_1.proto"),
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, f := range out {
-		os.WriteFile("testdata/"+f.GetName(), []byte(f.GetContent()), 0644)
+		if err := os.WriteFile(f.GetName(), []byte(f.GetContent()), 0644); err != nil {
+			t.Fatal(err)
+		}
 	}
 }

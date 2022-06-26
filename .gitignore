@@ -1,3 +1,4 @@
 .vscode
 dev/
-pkg/ragu/testdata/*.pb*
+pkg/ragu/testdata/**
+!pkg/ragu/testdata/**/*.proto

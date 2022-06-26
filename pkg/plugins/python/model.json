@@ -1,0 +1,652 @@
+{
+  "type": "object",
+  "properties": {
+    "output_file": {
+      "title": "output_file",
+      "type": "object",
+      "properties": {
+        "datetime_imports": {
+          "title": "datetime_imports",
+          "type": "array",
+          "items": {
+            "title": "i",
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          }
+        },
+        "enums": {
+          "title": "enums",
+          "type": "array",
+          "items": {
+            "title": "enum",
+            "type": "object",
+            "properties": {
+              "comment": {
+                "title": "comment",
+                "anyOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "string"
+                  }
+                ]
+              },
+              "py_name": {
+                "title": "py_name",
+                "anyOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "string"
+                  }
+                ]
+              },
+              "entries": {
+                "title": "entries",
+                "type": "array",
+                "items": {
+                  "title": "entry",
+                  "type": "object",
+                  "properties": {
+                    "value": {
+                      "title": "value",
+                      "anyOf": [
+                        {
+                          "type": "boolean"
+                        },
+                        {
+                          "type": "null"
+                        },
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "string"
+                        }
+                      ]
+                    },
+                    "comment": {
+                      "title": "comment",
+                      "anyOf": [
+                        {
+                          "type": "boolean"
+                        },
+                        {
+                          "type": "null"
+                        },
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "string"
+                        }
+                      ]
+                    },
+                    "name": {
+                      "title": "name",
+                      "anyOf": [
+                        {
+                          "type": "boolean"
+                        },
+                        {
+                          "type": "null"
+                        },
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "string"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "value",
+                    "comment",
+                    "name"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "comment",
+              "py_name",
+              "entries"
+            ]
+          }
+        },
+        "python_module_imports": {
+          "title": "python_module_imports",
+          "type": "array",
+          "items": {
+            "title": "i",
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          }
+        },
+        "imports_type_checking_only": {
+          "title": "imports_type_checking_only",
+          "type": "array",
+          "items": {
+            "title": "i",
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          }
+        },
+        "messages": {
+          "title": "messages",
+          "type": "array",
+          "items": {
+            "title": "message",
+            "type": "object",
+            "properties": {
+              "comment": {
+                "title": "comment",
+                "anyOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "string"
+                  }
+                ]
+              },
+              "deprecated": {
+                "title": "deprecated",
+                "anyOf": [
+                  {
+                    "type": "object"
+                  },
+                  {
+                    "type": "array"
+                  },
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "py_name": {
+                "title": "py_name",
+                "anyOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "string"
+                  }
+                ]
+              },
+              "has_deprecated_fields": {
+                "title": "has_deprecated_fields",
+                "anyOf": [
+                  {
+                    "type": "object"
+                  },
+                  {
+                    "type": "array"
+                  },
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "deprecated_fields": {
+                "title": "deprecated_fields",
+                "type": "array",
+                "items": {
+                  "title": "field",
+                  "anyOf": [
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "type": "null"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "fields": {
+                "title": "fields",
+                "type": "array",
+                "items": {
+                  "title": "field",
+                  "type": "object",
+                  "properties": {
+                    "get_field_string": {
+                      "title": "get_field_string",
+                      "anyOf": [
+                        {
+                          "type": "boolean"
+                        },
+                        {
+                          "type": "null"
+                        },
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "string"
+                        }
+                      ]
+                    },
+                    "comment": {
+                      "title": "comment",
+                      "anyOf": [
+                        {
+                          "type": "boolean"
+                        },
+                        {
+                          "type": "null"
+                        },
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "string"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "get_field_string",
+                    "comment"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "comment",
+              "deprecated",
+              "py_name",
+              "has_deprecated_fields",
+              "deprecated_fields",
+              "fields"
+            ]
+          }
+        },
+        "typing_imports": {
+          "title": "typing_imports",
+          "type": "array",
+          "items": {
+            "title": "i",
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          }
+        },
+        "imports": {
+          "title": "imports",
+          "type": "array",
+          "items": {
+            "title": "i",
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          }
+        },
+        "services": {
+          "title": "services",
+          "type": "array",
+          "items": {
+            "title": "service",
+            "type": "object",
+            "properties": {
+              "comment": {
+                "title": "comment",
+                "anyOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "string"
+                  }
+                ]
+              },
+              "methods": {
+                "title": "methods",
+                "type": "array",
+                "items": {
+                  "title": "method",
+                  "type": "object",
+                  "properties": {
+                    "py_input_message_param": {
+                      "title": "py_input_message_param",
+                      "anyOf": [
+                        {
+                          "type": "boolean"
+                        },
+                        {
+                          "type": "null"
+                        },
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "string"
+                        }
+                      ]
+                    },
+                    "comment": {
+                      "title": "comment",
+                      "anyOf": [
+                        {
+                          "type": "boolean"
+                        },
+                        {
+                          "type": "null"
+                        },
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "string"
+                        }
+                      ]
+                    },
+                    "server_streaming": {
+                      "title": "server_streaming",
+                      "anyOf": [
+                        {
+                          "type": "object"
+                        },
+                        {
+                          "type": "array"
+                        },
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "boolean"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "py_output_message_type": {
+                      "title": "py_output_message_type",
+                      "anyOf": [
+                        {
+                          "type": "boolean"
+                        },
+                        {
+                          "type": "null"
+                        },
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "string"
+                        }
+                      ]
+                    },
+                    "py_input_message_type": {
+                      "title": "py_input_message_type",
+                      "anyOf": [
+                        {
+                          "type": "boolean"
+                        },
+                        {
+                          "type": "null"
+                        },
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "string"
+                        }
+                      ]
+                    },
+                    "py_name": {
+                      "title": "py_name",
+                      "anyOf": [
+                        {
+                          "type": "boolean"
+                        },
+                        {
+                          "type": "null"
+                        },
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "string"
+                        }
+                      ]
+                    },
+                    "route": {
+                      "title": "route",
+                      "anyOf": [
+                        {
+                          "type": "boolean"
+                        },
+                        {
+                          "type": "null"
+                        },
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "string"
+                        }
+                      ]
+                    },
+                    "py_input_message": {
+                      "title": "py_input_message",
+                      "anyOf": [
+                        {
+                          "type": "object"
+                        },
+                        {
+                          "type": "array"
+                        },
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "boolean"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "client_streaming": {
+                      "title": "client_streaming",
+                      "anyOf": [
+                        {
+                          "type": "object"
+                        },
+                        {
+                          "type": "array"
+                        },
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "boolean"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "py_input_message_param",
+                    "comment",
+                    "server_streaming",
+                    "py_output_message_type",
+                    "py_input_message_type",
+                    "py_name",
+                    "route",
+                    "py_input_message",
+                    "client_streaming"
+                  ]
+                }
+              },
+              "py_name": {
+                "title": "py_name",
+                "anyOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "string"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "comment",
+              "methods",
+              "py_name"
+            ]
+          }
+        }
+      },
+      "required": [
+        "datetime_imports",
+        "enums",
+        "python_module_imports",
+        "imports_type_checking_only",
+        "messages",
+        "typing_imports",
+        "imports",
+        "services"
+      ]
+    }
+  },
+  "required": [
+    "output_file"
+  ]
+}

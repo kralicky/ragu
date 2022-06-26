@@ -14,20 +14,22 @@ import (
 	"github.com/kralicky/ragu/v2/pkg/plugins/golang"
 	"github.com/kralicky/ragu/v2/pkg/plugins/golang/gateway"
 	"github.com/kralicky/ragu/v2/pkg/plugins/golang/grpc"
+	"github.com/kralicky/ragu/v2/pkg/plugins/python"
+	"github.com/kralicky/ragu/v2/pkg/util"
 	"github.com/samber/lo"
 	"google.golang.org/protobuf/compiler/protogen"
 	"google.golang.org/protobuf/types/pluginpb"
 )
 
 func GenerateCode(sources ...Source) ([]*pluginpb.CodeGeneratorResponse_File, error) {
-	localPkg, err := CallingFuncPackage()
+	localPkg, err := util.CallingFuncPackage()
 	if err != nil {
 		return nil, fmt.Errorf("failed to find calling package: %w", err)
 	}
 
 	descs, err := (protoparse.Parser{
 		InterpretOptionsInUnlinkedFiles: true,
-	}).ParseFilesButDoNotLink(lo.Map(sources, apply(Source.AbsolutePath))...)
+	}).ParseFilesButDoNotLink(util.Map(sources, Source.AbsolutePath)...)
 	if err != nil {
 		return nil, err
 	}
@@ -37,7 +39,8 @@ func GenerateCode(sources ...Source) ([]*pluginpb.CodeGeneratorResponse_File, er
 		if goPkg == nil {
 			return nil, fmt.Errorf("%s: missing go_package option", desc.GetName())
 		}
-		sourcePkgPaths = append(sourcePkgPaths, path.Join(*goPkg, filepath.Base(desc.GetName())))
+		goPath := path.Join(*goPkg, filepath.Base(desc.GetName()))
+		sourcePkgPaths = append(sourcePkgPaths, goPath)
 	}
 
 	parser := protoparse.Parser{
@@ -63,8 +66,8 @@ func GenerateCode(sources ...Source) ([]*pluginpb.CodeGeneratorResponse_File, er
 	}
 
 	outputs := []*pluginpb.CodeGeneratorResponse_File{}
-	for _, d := range descriptors {
-		descs := lo.Map(recursiveDeps(d, map[string]struct{}{}), apply((*desc.FileDescriptor).AsFileDescriptorProto))
+	for i, d := range descriptors {
+		descs := util.Map(recursiveDeps(d, map[string]struct{}{}), (*desc.FileDescriptor).AsFileDescriptorProto)
 		descs = append(descs, d.AsFileDescriptorProto())
 
 		codeGeneratorRequest := &pluginpb.CodeGeneratorRequest{
@@ -95,13 +98,17 @@ func GenerateCode(sources ...Source) ([]*pluginpb.CodeGeneratorResponse_File, er
 			return nil, err
 		}
 
+		if err := python.Generate(plugin); err != nil {
+			return nil, err
+		}
+
 		response := plugin.Response()
 		if response.Error != nil {
 			return nil, errors.New(response.GetError())
 		}
 
 		for _, f := range response.GetFile() {
-			*f.Name = filepath.Base(*f.Name)
+			*f.Name = filepath.Join(filepath.Dir(sources[i].AbsolutePath()), filepath.Base(*f.Name))
 			outputs = append(outputs, f)
 		}
 	}
