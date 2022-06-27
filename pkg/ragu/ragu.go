@@ -1,6 +1,7 @@
 package ragu
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
 	"os"
@@ -18,10 +19,17 @@ import (
 )
 
 type GeneratedFile struct {
-	Name         string
-	RelativePath string
-	PackagePath  string
-	Content      string
+	// Basename of the generated file.
+	Name string
+	// Path where this file can be written to, such that it will be in the same
+	// directory as the source proto it was generated from. Calling WriteToDisk
+	// will write the file to this path. This will be a relative path if
+	// the source file was given as a relative path.
+	SourceRelPath string
+	// Go package (not including the file name) defined in the source proto.
+	Package string
+	// Generated file content.
+	Content string
 }
 
 func (g *GeneratedFile) Read(p []byte) (int, error) {
@@ -29,7 +37,7 @@ func (g *GeneratedFile) Read(p []byte) (int, error) {
 }
 
 func (g *GeneratedFile) WriteToDisk() error {
-	return os.WriteFile(g.RelativePath, []byte(g.Content), 0644)
+	return os.WriteFile(g.SourceRelPath, []byte(g.Content), 0644)
 }
 
 // Generates code for each source file (or files matching a glob pattern)
@@ -41,34 +49,25 @@ func GenerateCode(generators []Generator, sources ...string) ([]*GeneratedFile, 
 		sources = resolved
 	}
 
-	localPkg, err := util.CallingFuncPackage()
-	if err != nil {
-		return nil, fmt.Errorf("failed to find calling package: %w", err)
-	}
-
-	descs, err := (protoparse.Parser{
-		InterpretOptionsInUnlinkedFiles: true,
-	}).ParseFilesButDoNotLink(sources...)
-	if err != nil {
-		return nil, err
-	}
-	sourcePkgPaths := []string{}
-	for _, desc := range descs {
-		goPkg := desc.Options.GoPackage
-		if goPkg == nil {
-			return nil, fmt.Errorf("%s: missing go_package option", desc.GetName())
+	sourcePackages := map[string]string{}
+	sourcePkgDirs := map[string]string{}
+	for _, source := range sources {
+		goPkg, err := fastLookupGoModule(source)
+		if err != nil {
+			return nil, fmt.Errorf("failed to lookup go module for %s: %w", source, err)
 		}
-		goPath := path.Join(*goPkg, filepath.Base(desc.GetName()))
-		sourcePkgPaths = append(sourcePkgPaths, goPath)
+		sourcePkgDirs[goPkg] = filepath.Dir(source)
+		sourcePackages[path.Join(goPkg, path.Base(source))] = source
 	}
 
 	parser := protoparse.Parser{
-		InferImportPaths:      false,
-		IncludeSourceCodeInfo: true,
-		Accessor:              SourceAccessor(localPkg),
-		LookupImport:          desc.LoadFileDescriptor,
+		InferImportPaths:                false,
+		IncludeSourceCodeInfo:           true,
+		InterpretOptionsInUnlinkedFiles: true,
+		Accessor:                        SourceAccessor(sourcePackages),
+		LookupImport:                    desc.LoadFileDescriptor,
 	}
-	descriptors, err := parser.ParseFiles(sourcePkgPaths...)
+	descriptors, err := parser.ParseFiles(lo.Keys(sourcePackages)...)
 	if err != nil {
 		return nil, err
 	}
@@ -76,7 +75,6 @@ func GenerateCode(generators []Generator, sources ...string) ([]*GeneratedFile, 
 	outputs := []*GeneratedFile{}
 	for _, d := range descriptors {
 		descs := util.Map(recursiveDeps(d, map[string]struct{}{}), (*desc.FileDescriptor).AsFileDescriptorProto)
-		descs = append(descs, d.AsFileDescriptorProto())
 
 		codeGeneratorRequest := &pluginpb.CodeGeneratorRequest{
 			FileToGenerate: []string{d.GetName()},
@@ -105,11 +103,18 @@ func GenerateCode(generators []Generator, sources ...string) ([]*GeneratedFile, 
 		}
 
 		for _, f := range response.GetFile() {
+			pkg, name := filepath.Split(f.GetName())
+			pkg = strings.TrimSuffix(pkg, "/")
+			dir, ok := sourcePkgDirs[pkg]
+			if !ok {
+				return nil, fmt.Errorf("bug: failed to find source package %q in list %v", pkg, lo.Keys(sourcePkgDirs))
+			}
+			relPath := path.Join(dir, name)
 			outputs = append(outputs, &GeneratedFile{
-				Name:         path.Base(f.GetName()),
-				PackagePath:  f.GetName(),
-				RelativePath: strings.TrimPrefix(strings.TrimPrefix(*f.Name, localPkg.ImportPath), "/"),
-				Content:      f.GetContent(),
+				Name:          name,
+				Package:       pkg,
+				SourceRelPath: relPath,
+				Content:       f.GetContent(),
 			})
 		}
 	}
@@ -121,11 +126,12 @@ func recursiveDeps(d *desc.FileDescriptor, alreadySeen map[string]struct{}) []*d
 	if _, ok := alreadySeen[d.GetName()]; ok {
 		return nil
 	}
+	alreadySeen[d.GetName()] = struct{}{}
 	deps := []*desc.FileDescriptor{}
 	for _, dep := range d.GetDependencies() {
 		deps = append(deps, recursiveDeps(dep, alreadySeen)...)
-		deps = append(deps, dep)
 	}
+	deps = append(deps, d)
 	return deps
 }
 
@@ -143,4 +149,44 @@ func resolvePatterns(sources []string) ([]string, error) {
 		}
 	}
 	return resolved, nil
+}
+
+func fastLookupGoModule(filename string) (string, error) {
+	// Search the .proto file for `option go_package = "...";`
+	// We know this will be somewhere at the top of the file.
+	f, err := os.Open(filename)
+	if err != nil {
+		return "", err
+	}
+	scan := bufio.NewScanner(f)
+	for scan.Scan() {
+		line := scan.Text()
+		if !strings.HasPrefix(line, "option") {
+			continue
+		}
+		index := strings.Index(line, "go_package")
+		if index == -1 {
+			continue
+		}
+		for ; index < len(line); index++ {
+			if line[index] == '=' {
+				break
+			}
+		}
+		for ; index < len(line); index++ {
+			if line[index] == '"' {
+				break
+			}
+		}
+		if index == len(line) {
+			continue
+		}
+		startIdx := index + 1
+		endIdx := strings.LastIndexByte(line, '"')
+		if endIdx <= startIdx {
+			continue
+		}
+		return line[startIdx:endIdx], nil
+	}
+	return "", fmt.Errorf("no go_package option found")
 }

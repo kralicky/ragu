@@ -6,7 +6,6 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"path"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -14,21 +13,23 @@ import (
 	"golang.org/x/mod/module"
 )
 
-func SourceAccessor(localPkg *build.Package) func(filename string) (io.ReadCloser, error) {
-	return func(filename string) (io.ReadCloser, error) {
-		if strings.HasPrefix(filename, localPkg.ImportPath) {
-			// local to this package
-			localPath := path.Join(localPkg.Dir, strings.TrimPrefix(filename, localPkg.ImportPath))
-			return os.Open(localPath)
+func SourceAccessor(sourcePackages map[string]string) func(filename string) (io.ReadCloser, error) {
+	return func(importName string) (io.ReadCloser, error) {
+		if filename, ok := sourcePackages[importName]; ok {
+			return os.Open(filename)
 		}
 
-		if f, err := os.Open(filename); err == nil {
+		if f, err := os.Open(importName); err == nil {
 			return f, nil
 		}
 
-		rc, err := readFromModuleCache(filename)
+		if strings.HasPrefix(importName, "google/") {
+			return nil, os.ErrNotExist
+		}
+
+		rc, err := readFromModuleCache(importName)
 		if err != nil {
-			return nil, fmt.Errorf("could not find %s locally or in go module cache: %w", filename, err)
+			return nil, fmt.Errorf("could not find %s locally or in go module cache: %w", importName, err)
 		}
 		return rc, nil
 	}

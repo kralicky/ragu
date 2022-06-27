@@ -7,9 +7,10 @@ import (
 	"github.com/kralicky/grpc-gateway/v2/pkg/codegenerator"
 	"github.com/kralicky/grpc-gateway/v2/pkg/descriptor"
 	"github.com/kralicky/grpc-gateway/v2/protoc-gen-grpc-gateway/pkg/gengateway"
+	"github.com/kralicky/grpc-gateway/v2/protoc-gen-openapiv2/options"
 	"github.com/kralicky/grpc-gateway/v2/protoc-gen-openapiv2/pkg/genopenapi"
 	"google.golang.org/protobuf/compiler/protogen"
-	"google.golang.org/protobuf/types/descriptorpb"
+	"google.golang.org/protobuf/proto"
 )
 
 var Generator = generator{}
@@ -36,14 +37,16 @@ func (generator) Generate(gen *protogen.Plugin) error {
 		return fmt.Errorf("HTTP rules without a matching selector: %s", strings.Join(unboundHTTPRules, ", "))
 	}
 
-	targets := make([]*descriptor.File, len(gen.Request.FileToGenerate))
-	for i, target := range gen.Request.FileToGenerate {
+	targets := []*descriptor.File{}
+	for _, target := range gen.Request.FileToGenerate {
 		f, err := reg.LookupFile(target)
 		if err != nil {
 			return err
 		}
-		f.SourceCodeInfo = &descriptorpb.SourceCodeInfo{}
-		targets[i] = f
+		if !proto.HasExtension(f, options.E_Openapiv2Swagger) {
+			continue
+		}
+		targets = append(targets, f)
 	}
 
 	files, err := generator.Generate(targets)
