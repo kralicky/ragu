@@ -3,6 +3,7 @@ package python
 import (
 	_ "embed"
 	"encoding/json"
+	"path"
 
 	"github.com/flosch/pongo2/v6"
 	"github.com/jhump/protoreflect/desc"
@@ -26,9 +27,11 @@ func (generator) Generate(gen *protogen.Plugin) error {
 	if err != nil {
 		return err
 	}
+	dirs := map[string]struct{}{}
 	for _, f := range gen.Files {
 		if f.Generate {
-			filename := f.GeneratedFilenamePrefix + ".pb.py"
+			dirs[path.Dir(f.GeneratedFilenamePrefix)] = struct{}{}
+			filename := f.GeneratedFilenamePrefix + "_pb.py"
 			g := gen.NewGeneratedFile(filename, "")
 
 			fd, err := desc.CreateFileDescriptors(gen.Request.ProtoFile)
@@ -57,5 +60,9 @@ func (generator) Generate(gen *protogen.Plugin) error {
 			}
 		}
 	}
+	for dir := range dirs {
+		gen.NewGeneratedFile(path.Join(dir, "__init__.py"), "")
+	}
+
 	return nil
 }
