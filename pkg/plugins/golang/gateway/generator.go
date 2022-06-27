@@ -12,7 +12,15 @@ import (
 	"google.golang.org/protobuf/types/descriptorpb"
 )
 
-func Generate(gen *protogen.Plugin) error {
+var Generator = generator{}
+
+type generator struct{}
+
+func (generator) Name() string {
+	return "go-grpc-gateway"
+}
+
+func (generator) Generate(gen *protogen.Plugin) error {
 	reg := descriptor.NewRegistry()
 
 	codegenerator.SetSupportedFeaturesOnPluginGen(gen)

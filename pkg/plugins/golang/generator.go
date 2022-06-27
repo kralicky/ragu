@@ -5,7 +5,15 @@ import (
 	"google.golang.org/protobuf/compiler/protogen"
 )
 
-func Generate(gen *protogen.Plugin) error {
+var Generator = generator{}
+
+type generator struct{}
+
+func (generator) Name() string {
+	return "go"
+}
+
+func (generator) Generate(gen *protogen.Plugin) error {
 	for _, f := range gen.Files {
 		if f.Generate {
 			gengo.GenerateFile(gen, f)

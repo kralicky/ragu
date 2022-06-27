@@ -13,7 +13,15 @@ import (
 //go:embed template.py.j2
 var template []byte
 
-func Generate(gen *protogen.Plugin) error {
+var Generator = generator{}
+
+type generator struct{}
+
+func (generator) Name() string {
+	return "python"
+}
+
+func (generator) Generate(gen *protogen.Plugin) error {
 	tpl, err := pongo2.FromBytes(template)
 	if err != nil {
 		return err

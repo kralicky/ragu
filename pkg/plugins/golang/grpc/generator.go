@@ -13,7 +13,15 @@ func SetRequireUnimplemented(req bool) {
 	*requireUnimplemented = req
 }
 
-func Generate(gen *protogen.Plugin) error {
+var Generator = generator{}
+
+type generator struct{}
+
+func (generator) Name() string {
+	return "go-grpc"
+}
+
+func (generator) Generate(gen *protogen.Plugin) error {
 	for _, f := range gen.Files {
 		if f.Generate {
 			generateFile(gen, f)

@@ -3,25 +3,44 @@ package ragu
 import (
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"path"
 	"path/filepath"
 	"strings"
 
+	"github.com/bmatcuk/doublestar"
 	"github.com/jhump/protoreflect/desc"
 	"github.com/jhump/protoreflect/desc/protoparse"
-	"github.com/kralicky/ragu/v2/pkg/plugins/golang"
-	"github.com/kralicky/ragu/v2/pkg/plugins/golang/gateway"
-	"github.com/kralicky/ragu/v2/pkg/plugins/golang/grpc"
-	"github.com/kralicky/ragu/v2/pkg/plugins/python"
-	"github.com/kralicky/ragu/v2/pkg/util"
+	"github.com/kralicky/ragu/pkg/util"
 	"github.com/samber/lo"
 	"google.golang.org/protobuf/compiler/protogen"
 	"google.golang.org/protobuf/types/pluginpb"
 )
 
-func GenerateCode(sources ...Source) ([]*pluginpb.CodeGeneratorResponse_File, error) {
+type GeneratedFile struct {
+	Name         string
+	RelativePath string
+	PackagePath  string
+	Content      string
+}
+
+func (g *GeneratedFile) Read(p []byte) (int, error) {
+	return copy(p, g.Content), nil
+}
+
+func (g *GeneratedFile) WriteToDisk() error {
+	return os.WriteFile(g.RelativePath, []byte(g.Content), 0644)
+}
+
+// Generates code for each source file (or files matching a glob pattern)
+// using one or more code generators.
+func GenerateCode(generators []Generator, sources ...string) ([]*GeneratedFile, error) {
+	if resolved, err := resolvePatterns(sources); err != nil {
+		return nil, err
+	} else {
+		sources = resolved
+	}
+
 	localPkg, err := util.CallingFuncPackage()
 	if err != nil {
 		return nil, fmt.Errorf("failed to find calling package: %w", err)
@@ -29,7 +48,7 @@ func GenerateCode(sources ...Source) ([]*pluginpb.CodeGeneratorResponse_File, er
 
 	descs, err := (protoparse.Parser{
 		InterpretOptionsInUnlinkedFiles: true,
-	}).ParseFilesButDoNotLink(util.Map(sources, Source.AbsolutePath)...)
+	}).ParseFilesButDoNotLink(sources...)
 	if err != nil {
 		return nil, err
 	}
@@ -46,27 +65,16 @@ func GenerateCode(sources ...Source) ([]*pluginpb.CodeGeneratorResponse_File, er
 	parser := protoparse.Parser{
 		InferImportPaths:      false,
 		IncludeSourceCodeInfo: true,
-		Accessor: func(filename string) (io.ReadCloser, error) {
-			if strings.HasPrefix(filename, localPkg.ImportPath) {
-				// local to this package
-				localPath := path.Join(localPkg.Dir, strings.TrimPrefix(filename, localPkg.ImportPath))
-				return os.Open(localPath)
-			}
-
-			return os.Open(filename)
-		},
-		LookupImport: func(s string) (*desc.FileDescriptor, error) {
-			d, err := desc.LoadFileDescriptor(s)
-			return d, err
-		},
+		Accessor:              SourceAccessor(localPkg),
+		LookupImport:          desc.LoadFileDescriptor,
 	}
 	descriptors, err := parser.ParseFiles(sourcePkgPaths...)
 	if err != nil {
 		return nil, err
 	}
 
-	outputs := []*pluginpb.CodeGeneratorResponse_File{}
-	for i, d := range descriptors {
+	outputs := []*GeneratedFile{}
+	for _, d := range descriptors {
 		descs := util.Map(recursiveDeps(d, map[string]struct{}{}), (*desc.FileDescriptor).AsFileDescriptorProto)
 		descs = append(descs, d.AsFileDescriptorProto())
 
@@ -80,26 +88,15 @@ func GenerateCode(sources ...Source) ([]*pluginpb.CodeGeneratorResponse_File, er
 			},
 		}
 
-		opts := protogen.Options{}
-		plugin, err := opts.New(codeGeneratorRequest)
+		plugin, err := (protogen.Options{}).New(codeGeneratorRequest)
 		if err != nil {
 			return nil, err
 		}
 
-		if err := golang.Generate(plugin); err != nil {
-			return nil, err
-		}
-
-		if err := grpc.Generate(plugin); err != nil {
-			return nil, err
-		}
-
-		if err := gateway.Generate(plugin); err != nil {
-			return nil, err
-		}
-
-		if err := python.Generate(plugin); err != nil {
-			return nil, err
+		for _, g := range generators {
+			if err := g.Generate(plugin); err != nil {
+				return nil, err
+			}
 		}
 
 		response := plugin.Response()
@@ -108,8 +105,12 @@ func GenerateCode(sources ...Source) ([]*pluginpb.CodeGeneratorResponse_File, er
 		}
 
 		for _, f := range response.GetFile() {
-			*f.Name = filepath.Join(filepath.Dir(sources[i].AbsolutePath()), filepath.Base(*f.Name))
-			outputs = append(outputs, f)
+			outputs = append(outputs, &GeneratedFile{
+				Name:         path.Base(f.GetName()),
+				PackagePath:  f.GetName(),
+				RelativePath: strings.TrimPrefix(strings.TrimPrefix(*f.Name, localPkg.ImportPath), "/"),
+				Content:      f.GetContent(),
+			})
 		}
 	}
 
@@ -126,4 +127,20 @@ func recursiveDeps(d *desc.FileDescriptor, alreadySeen map[string]struct{}) []*d
 		deps = append(deps, dep)
 	}
 	return deps
+}
+
+func resolvePatterns(sources []string) ([]string, error) {
+	resolved := []string{}
+	for _, source := range sources {
+		if strings.Contains(source, "*") {
+			matches, err := doublestar.Glob(source)
+			if err != nil {
+				return nil, err
+			}
+			resolved = append(resolved, matches...)
+		} else {
+			resolved = append(resolved, source)
+		}
+	}
+	return resolved, nil
 }
