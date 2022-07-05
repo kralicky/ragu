@@ -15,6 +15,7 @@ import (
 	"github.com/kralicky/ragu/pkg/util"
 	"github.com/samber/lo"
 	"google.golang.org/protobuf/compiler/protogen"
+	"google.golang.org/protobuf/types/descriptorpb"
 	"google.golang.org/protobuf/types/pluginpb"
 )
 
@@ -40,9 +41,27 @@ func (g *GeneratedFile) WriteToDisk() error {
 	return os.WriteFile(g.SourceRelPath, []byte(g.Content), 0644)
 }
 
+var commonMissingImports = map[string]string{
+	"unknown extension google.api.http": "google/api/annotations.proto",
+	"no message found: Status":          "google/rpc/status.proto",
+	"unknown extension grpc.gateway.protoc_gen_openapiv2.options.openapiv2_swagger": "github.com/kralicky/grpc-gateway/v2/protoc-gen-openapiv2/options/annotations.proto",
+}
+
 // Generates code for each source file (or files matching a glob pattern)
 // using one or more code generators.
-func GenerateCode(generators []Generator, sources ...string) ([]*GeneratedFile, error) {
+func GenerateCode(generators []Generator, sources ...string) (_ []*GeneratedFile, generateCodeErr error) {
+	defer func() {
+		if generateCodeErr == nil {
+			return
+		}
+		msg := generateCodeErr.Error()
+		for str, imp := range commonMissingImports {
+			if strings.Contains(msg, str) {
+				generateCodeErr = fmt.Errorf("%w (try importing %s)", generateCodeErr, imp)
+			}
+		}
+	}()
+
 	if resolved, err := resolvePatterns(sources); err != nil {
 		return nil, err
 	} else {
@@ -75,6 +94,15 @@ func GenerateCode(generators []Generator, sources ...string) ([]*GeneratedFile, 
 	outputs := []*GeneratedFile{}
 	for _, d := range descriptors {
 		descs := util.Map(recursiveDeps(d, map[string]struct{}{}), (*desc.FileDescriptor).AsFileDescriptorProto)
+
+		for _, desc := range descs {
+			if desc.SourceCodeInfo == nil {
+				// Some generators will complain if SourceCodeInfo is nil
+				desc.SourceCodeInfo = &descriptorpb.SourceCodeInfo{
+					Location: []*descriptorpb.SourceCodeInfo_Location{},
+				}
+			}
+		}
 
 		codeGeneratorRequest := &pluginpb.CodeGeneratorRequest{
 			FileToGenerate: []string{d.GetName()},

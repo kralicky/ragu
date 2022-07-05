@@ -37,32 +37,36 @@ func (generator) Generate(gen *protogen.Plugin) error {
 		return fmt.Errorf("HTTP rules without a matching selector: %s", strings.Join(unboundHTTPRules, ", "))
 	}
 
-	targets := []*descriptor.File{}
+	gatewayTargets := []*descriptor.File{}
+	openapiTargets := []*descriptor.File{}
+
 	for _, target := range gen.Request.FileToGenerate {
 		f, err := reg.LookupFile(target)
 		if err != nil {
 			return err
 		}
-		if !proto.HasExtension(f, options.E_Openapiv2Swagger) {
-			continue
+		gatewayTargets = append(gatewayTargets, f)
+		if proto.HasExtension(f.GetOptions(), options.E_Openapiv2Swagger) {
+			openapiTargets = append(openapiTargets, f)
 		}
-		targets = append(targets, f)
 	}
 
-	files, err := generator.Generate(targets)
-	if err != nil {
-		return err
-	}
-	for _, f := range files {
-		genFile := gen.NewGeneratedFile(f.GetName(), protogen.GoImportPath(f.GoPkg.Path))
-		if _, err := genFile.Write([]byte(f.GetContent())); err != nil {
+	if len(gatewayTargets) > 0 {
+		files, err := generator.Generate(gatewayTargets)
+		if err != nil {
 			return err
 		}
+		for _, f := range files {
+			genFile := gen.NewGeneratedFile(f.GetName(), protogen.GoImportPath(f.GoPkg.Path))
+			if _, err := genFile.Write([]byte(f.GetContent())); err != nil {
+				return err
+			}
+		}
 	}
 
-	if len(files) > 0 {
-		g := genopenapi.New(reg)
-		out, err := g.Generate(targets)
+	if len(openapiTargets) > 0 {
+		g := genopenapi.New(reg, genopenapi.FormatJSON)
+		out, err := g.Generate(openapiTargets)
 		if err != nil {
 			return err
 		}
