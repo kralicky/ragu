@@ -5,6 +5,8 @@ go 1.18
 require (
 	github.com/bmatcuk/doublestar v1.3.4
 	github.com/flosch/pongo2/v6 v6.0.0
+	github.com/gogo/protobuf v1.3.2
+	github.com/golang/protobuf v1.5.2
 	github.com/iancoleman/strcase v0.2.0
 	github.com/jhump/protoreflect v1.12.0
 	github.com/kralicky/grpc-gateway/v2 v2.11.0-1
@@ -16,11 +18,8 @@ require (
 
 require (
 	github.com/golang/glog v1.0.0 // indirect
-	github.com/golang/protobuf v1.5.2 // indirect
 	golang.org/x/text v0.3.7 // indirect
 	golang.org/x/xerrors v0.0.0-20220609144429-65e65417b02f // indirect
 	google.golang.org/genproto v0.0.0-20220719170305-83ca9fad585f // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
-
-replace github.com/kralicky/grpc-gateway/v2 => ../grpc-gateway
