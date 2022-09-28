@@ -27,6 +27,10 @@ func SourceAccessor(sourcePackages map[string]string) func(filename string) (io.
 			return nil, os.ErrNotExist
 		}
 
+		if strings.HasPrefix(importName, "gogoproto/") {
+			importName = "github.com/gogo/protobuf/" + importName
+		}
+
 		rc, err := readFromModuleCache(importName)
 		if err != nil {
 			return nil, fmt.Errorf("could not find %s locally or in go module cache: %w", importName, err)

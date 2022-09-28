@@ -102,6 +102,15 @@ func GenerateCode(generators []Generator, sources ...string) (_ []*GeneratedFile
 					Location: []*descriptorpb.SourceCodeInfo_Location{},
 				}
 			}
+			// fix up any incomplete go_package options if we have the info available
+			// this will transform e.g. `go_package = "bar"` to `go_package = "github.com/foo/bar"`
+			goPackage := desc.GetOptions().GetGoPackage()
+			if !strings.Contains(goPackage, ".") && !strings.Contains(goPackage, "/") {
+				p := path.Dir(desc.GetName())
+				if strings.HasSuffix(p, goPackage) {
+					*desc.Options.GoPackage = p
+				}
+			}
 		}
 
 		codeGeneratorRequest := &pluginpb.CodeGeneratorRequest{
