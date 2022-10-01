@@ -1,4 +1,5 @@
 .vscode
 dev/
-pkg/ragu/testdata/**
-!pkg/ragu/testdata/**/*.proto
+testdata/**/*.go
+testdata/**/*.py
+testdata/**/*.json
