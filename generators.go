@@ -17,6 +17,7 @@ func DefaultGenerators() []Generator {
 	return []Generator{
 		golang.Generator,
 		grpc.Generator,
+		gateway.Generator,
 	}
 }
 

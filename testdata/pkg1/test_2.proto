@@ -1,5 +1,5 @@
 syntax = "proto3";
-option go_package = "github.com/kralicky/ragu/pkg/ragu/testdata/pkg1";
+option go_package = "github.com/kralicky/ragu/testdata/pkg1";
 import "google/protobuf/empty.proto";
 
 package pkg1;
