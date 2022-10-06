@@ -9,7 +9,7 @@ require (
 	github.com/golang/protobuf v1.5.2
 	github.com/iancoleman/strcase v0.2.0
 	github.com/jhump/protoreflect v1.13.0
-	github.com/kralicky/grpc-gateway/v2 v2.7.3-0.20221006212615-4590601753ba
+	github.com/kralicky/grpc-gateway/v2 v2.11.3
 	github.com/samber/lo v1.28.2
 	golang.org/x/exp v0.0.0-20220927162542-c76eaa363f9d
 	golang.org/x/mod v0.6.0-dev.0.20220419223038-86c51ed26bb4
