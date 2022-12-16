@@ -60,13 +60,31 @@ func readFromModuleCache(dep string) (io.ReadCloser, error) {
 	pkg, err := build.Default.Import(modulePath, "", 0)
 	if err != nil {
 		cmd := exec.Command("go", "list", "-m", "-f", "{{.Dir}}", modulePath)
-		cmd.Env = append(os.Environ(),
+		env := append(os.Environ(),
 			"GOOS="+runtime.GOOS,
 			"GOARCH="+runtime.GOARCH,
 			"GOROOT="+runtime.GOROOT(),
 		)
+		cmd.Env = env
 		if out, err := cmd.Output(); err == nil {
 			protoFilePath = filepath.Join(strings.TrimSpace(string(out)), filename)
+		} else {
+			// last resort: if the path contains more than 3 parts, see if we can walk the
+			// module path up until we reach a path that exists. This has a decent chance
+			// of being able to find proto files in subdirectories that don't contain
+			// any go code.
+			parts := strings.Split(modulePath, "/")
+			if len(parts) > 3 {
+				for i := len(parts) - 1; i >= 3; i-- {
+					cmd := exec.Command("go", "list", "-m", "-f", "{{.Dir}}", strings.Join(parts[:i], "/"))
+					cmd.Env = env
+					if out, err := cmd.Output(); err == nil {
+						// now add the parts that we skipped back to the end of the path
+						protoFilePath = filepath.Join(strings.TrimSpace(string(out)), strings.Join(parts[i:], "/"), filename)
+						break
+					}
+				}
+			}
 		}
 	} else {
 		protoFilePath = filepath.Join(pkg.Dir, filename)
