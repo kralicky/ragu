@@ -35,7 +35,7 @@ type Enum struct {
 type Entry struct {
 	Comment string `json:"comment"`
 	Name    string `json:"name"`
-	Value   any    `json:"value"`
+	Value   int32  `json:"value"`
 }
 
 type Message struct {
@@ -80,6 +80,7 @@ func buildModel(f *desc.FileDescriptor, deps []*desc.FileDescriptor) *Model {
 	m.OutputFile.Messages = m.buildMessages(f)
 	m.OutputFile.Services = m.buildServices(f)
 	m.OutputFile.cleanImports()
+
 	return m
 }
 
@@ -89,17 +90,35 @@ func (m *Model) buildEnums(f *desc.FileDescriptor) []Enum {
 		entries := []Entry{}
 		for _, value := range e.GetValues() {
 			e := Entry{
-				Comment: value.GetSourceInfo().GetLeadingComments(),
-				Name:    formatClassName(value.GetName()),
-				Value:   int32(value.GetNumber()),
+				Comment: formatComment(value.GetSourceInfo().GetLeadingComments(), 1),
+				Name:    value.GetName(),
+				Value:   value.GetNumber(),
 			}
 			entries = append(entries, e)
 		}
 		enums = append(enums, Enum{
-			Comment: e.GetSourceInfo().GetLeadingComments(),
-			PyName:  formatFieldName(e.GetName()),
+			Comment: formatComment(e.GetSourceInfo().GetLeadingComments(), 1),
+			PyName:  formatClassName(e.GetName()),
 			Entries: entries,
 		})
+	}
+	for _, msg := range f.GetMessageTypes() {
+		for _, nestedEnum := range msg.GetNestedEnumTypes() {
+			entries := []Entry{}
+			for _, value := range nestedEnum.GetValues() {
+				e := Entry{
+					Comment: formatComment(value.GetSourceInfo().GetLeadingComments(), 1),
+					Name:    value.GetName(),
+					Value:   value.GetNumber(),
+				}
+				entries = append(entries, e)
+			}
+			enums = append(enums, Enum{
+				Comment: formatComment(nestedEnum.GetSourceInfo().GetLeadingComments(), 1),
+				PyName:  formatClassName(msg.GetName() + "_" + nestedEnum.GetName()),
+				Entries: entries,
+			})
+		}
 	}
 	return enums
 }
@@ -112,7 +131,7 @@ func (m *Model) buildMessages(f *desc.FileDescriptor) []Message {
 			fields = append(fields, m.buildField(field))
 		}
 		messages = append(messages, Message{
-			Comment:    msg.GetSourceInfo().GetLeadingComments(),
+			Comment:    formatComment(msg.GetSourceInfo().GetLeadingComments(), 1),
 			PyName:     formatClassName(msg.GetName()),
 			Deprecated: msg.GetMessageOptions().GetDeprecated(),
 			Fields:     fields,
@@ -128,24 +147,49 @@ func (m *Model) buildField(f *desc.FieldDescriptor) Field {
 	if err != nil {
 		panic(err)
 	}
-	if f.IsRepeated() {
+	fieldWraps := strings.HasPrefix(f.GetType().String(), "google.protobuf")
+	fieldArgs := []string{fmt.Sprint(f.GetNumber())}
+	if fieldWraps {
+		fieldArgs = append(fieldArgs, "wraps=True")
+	}
+	var protoFieldType string
+
+	if f.IsMap() {
+		keyType, err := m.pyType(f.GetMapKeyType())
+		if err != nil {
+			panic(err)
+		}
+		valueType, err := m.pyType(f.GetMapValueType())
+		if err != nil {
+			panic(err)
+		}
+		annotation = fmt.Sprintf(": Dict[%s, %s]", keyType, valueType)
+		fieldArgs = append(fieldArgs, fmt.Sprintf("key_type=%s", keyType), fmt.Sprintf("value_type=%s", valueType))
+		m.OutputFile.TypingImports = append(m.OutputFile.TypingImports, "Dict")
+	} else if f.IsRepeated() {
 		annotation = fmt.Sprintf(": List[%s]", pyType)
 		m.OutputFile.TypingImports = append(m.OutputFile.TypingImports, "List")
 	} else {
 		annotation = fmt.Sprintf(": %s", pyType)
 	}
-	fieldWraps := strings.HasPrefix(f.GetType().String(), ".google.protobuf")
-	fieldArgs := []string{fmt.Sprint(f.GetNumber())}
-	if fieldWraps {
-		fieldArgs = append(fieldArgs, "wraps=True")
-	}
 
-	protoFieldType := strings.TrimPrefix(strings.ToLower(f.GetType().String()), "type_")
+	if f.IsMap() {
+		protoFieldType = "map"
+	} else {
+		protoFieldType = strings.TrimPrefix(strings.ToLower(f.GetType().String()), "type_")
+	}
 	fieldType := fmt.Sprintf("betterproto.%s_field(%s)", protoFieldType, strings.Join(fieldArgs, ", "))
 	return Field{
-		Comment:     f.GetSourceInfo().GetLeadingComments(),
+		Comment:     formatComment(f.GetSourceInfo().GetLeadingComments(), 1),
 		FieldString: fmt.Sprintf("%s%s = %s", name, annotation, fieldType),
 	}
+}
+
+func (m *Model) messageTypeRef(from *desc.FileDescriptor, msg *desc.MessageDescriptor) string {
+	fieldWraps := strings.HasPrefix(msg.GetFullyQualifiedName(), "google.protobuf")
+	return m.getTypeReference(from, msg.GetFile(),
+		msg.GetFile().GetDependencies(),
+		msg.GetFullyQualifiedName(), fieldWraps)
 }
 
 func (m *Model) buildServices(f *desc.FileDescriptor) []Service {
@@ -154,27 +198,28 @@ func (m *Model) buildServices(f *desc.FileDescriptor) []Service {
 	services := []Service{}
 	for _, s := range f.GetServices() {
 		methods := []Method{}
-		for _, m := range s.GetMethods() {
+		for _, method := range s.GetMethods() {
+
 			methods = append(methods, Method{
-				PyInputMessageParam: formatFieldName(m.GetInputType().GetName()),
-				Comment:             m.GetSourceInfo().GetLeadingComments(),
-				PyOutputMessageType: formatClassName(m.GetOutputType().GetName()),
-				PyInputMessageType:  formatClassName(m.GetInputType().GetName()),
-				PyName:              formatMethodName(m.GetName()),
-				Route:               fmt.Sprintf("/%s/%s", s.GetFullyQualifiedName(), m.GetName()),
-				PyInputMessage:      formatClassName(m.GetInputType().GetName()),
-				ServerStreaming:     m.IsServerStreaming(),
-				ClientStreaming:     m.IsClientStreaming(),
+				PyInputMessageParam: formatFieldName(method.GetInputType().GetName()),
+				Comment:             formatComment(method.GetSourceInfo().GetLeadingComments(), 2),
+				PyOutputMessageType: m.messageTypeRef(f, method.GetOutputType()),
+				PyInputMessageType:  m.messageTypeRef(f, method.GetInputType()),
+				PyName:              formatMethodName(method.GetName()),
+				Route:               fmt.Sprintf("/%s/%s", s.GetFullyQualifiedName(), method.GetName()),
+				PyInputMessage:      formatClassName(method.GetInputType().GetName()),
+				ServerStreaming:     method.IsServerStreaming(),
+				ClientStreaming:     method.IsClientStreaming(),
 			})
-			if m.IsClientStreaming() {
+			if method.IsClientStreaming() {
 				anyClientStreaming = true
 			}
-			if m.IsServerStreaming() {
+			if method.IsServerStreaming() {
 				anyServerStreaming = true
 			}
 		}
 		services = append(services, Service{
-			Comment: s.GetSourceInfo().GetLeadingComments(),
+			Comment: formatComment(s.GetSourceInfo().GetLeadingComments(), 1),
 			PyName:  formatClassName(s.GetName()),
 			Methods: methods,
 		})
@@ -230,10 +275,27 @@ func (m *Model) pyType(field *desc.FieldDescriptor) (string, error) {
 	case descriptorpb.FieldDescriptorProto_TYPE_BYTES:
 		return "bytes", nil
 	case descriptorpb.FieldDescriptorProto_TYPE_MESSAGE:
-		fieldWraps := strings.HasPrefix(field.GetMessageType().GetFullyQualifiedName(), ".google.protobuf")
-		return m.getTypeReference(field.GetFile().GetPackage(),
+		if field.IsMap() {
+			keyType, err := m.pyType(field.GetMapKeyType())
+			if err != nil {
+				return "", err
+			}
+			valueType, err := m.pyType(field.GetMapValueType())
+			if err != nil {
+				return "", err
+			}
+			return fmt.Sprintf("Dict[%s, %s]", keyType, valueType), nil
+		}
+		fieldWraps := strings.HasPrefix(field.GetMessageType().GetFullyQualifiedName(), "google.protobuf")
+		return m.getTypeReference(
+			field.GetFile(), field.GetMessageType().GetFile(),
 			field.GetFile().GetDependencies(),
 			field.GetMessageType().GetFullyQualifiedName(), fieldWraps), nil
+	case descriptorpb.FieldDescriptorProto_TYPE_ENUM:
+		return m.getTypeReference(
+			field.GetFile(), field.GetEnumType().GetFile(),
+			field.GetFile().GetDependencies(),
+			field.GetEnumType().GetFullyQualifiedName(), false), nil
 	}
 	return "", fmt.Errorf("unknown/unsupported type %s", field.GetType())
 }
@@ -249,4 +311,30 @@ func (o *OutputFile) cleanImports() {
 	o.ImportsTypeCheckingOnly = slices.Compact(o.ImportsTypeCheckingOnly)
 	o.PythonModuleImports = slices.Compact(o.PythonModuleImports)
 	o.TypingImports = slices.Compact(o.TypingImports)
+}
+
+func formatComment(comment string, indent int) string {
+	var lines []string
+	for _, line := range strings.Split(comment, "\n") {
+		line = strings.TrimSpace(line)
+		if len(line) == 0 {
+			continue
+		}
+		lines = append(lines, line)
+	}
+	if len(lines) == 0 {
+		return ""
+	}
+	space := strings.Repeat(" ", indent*4)
+	if len(lines) == 1 {
+		return fmt.Sprintf(space+`""" %s """`, lines[0])
+	}
+
+	buf := strings.Builder{}
+	buf.WriteString(space + `"""` + "\n")
+	for _, line := range lines {
+		buf.WriteString(space + line + "\n")
+	}
+	buf.WriteString(space + `"""`)
+	return buf.String()
 }

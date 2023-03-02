@@ -18,7 +18,7 @@ require (
 
 require (
 	github.com/golang/glog v1.0.0 // indirect
-	golang.org/x/text v0.3.7 // indirect
+	golang.org/x/text v0.7.0 // indirect
 	google.golang.org/genproto v0.0.0-20220822174746-9e6da59bd2fc // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

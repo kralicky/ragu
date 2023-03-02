@@ -2,6 +2,7 @@ package python
 
 import (
 	"fmt"
+	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -10,16 +11,18 @@ import (
 	"golang.org/x/exp/slices"
 )
 
+// https://github.com/danielgtaylor/python-betterproto/blob/master/src/betterproto/compile/importing.py
+
 var wrapperTypes = map[string]string{
-	".google.protobuf.DoubleValue": "google_protobuf.DoubleValue",
-	".google.protobuf.FloatValue":  "google_protobuf.FloatValue",
-	".google.protobuf.Int32Value":  "google_protobuf.Int32Value",
-	".google.protobuf.Int64Value":  "google_protobuf.Int64Value",
-	".google.protobuf.UInt32Value": "google_protobuf.UInt32Value",
-	".google.protobuf.UInt64Value": "google_protobuf.UInt64Value",
-	".google.protobuf.BoolValue":   "google_protobuf.BoolValue",
-	".google.protobuf.StringValue": "google_protobuf.StringValue",
-	".google.protobuf.BytesValue":  "google_protobuf.BytesValue",
+	"google.protobuf.DoubleValue": "google_protobuf.DoubleValue",
+	"google.protobuf.FloatValue":  "google_protobuf.FloatValue",
+	"google.protobuf.Int32Value":  "google_protobuf.Int32Value",
+	"google.protobuf.Int64Value":  "google_protobuf.Int64Value",
+	"google.protobuf.UInt32Value": "google_protobuf.UInt32Value",
+	"google.protobuf.UInt64Value": "google_protobuf.UInt64Value",
+	"google.protobuf.BoolValue":   "google_protobuf.BoolValue",
+	"google.protobuf.StringValue": "google_protobuf.StringValue",
+	"google.protobuf.BytesValue":  "google_protobuf.BytesValue",
 }
 
 func parseSourceTypeName(fieldTypeName string) (string, string) {
@@ -33,30 +36,28 @@ func parseSourceTypeName(fieldTypeName string) (string, string) {
 	}
 }
 
-func (m *Model) getTypeReference(pkg string, imports []*desc.FileDescriptor, sourceType string, unwrap bool) string {
+func (m *Model) getTypeReference(from, to *desc.FileDescriptor, imports []*desc.FileDescriptor, sourceType string, unwrap bool) string {
 	if unwrap {
 		if wrapperType, ok := wrapperTypes[sourceType]; ok {
 			m.OutputFile.TypingImports = append(m.OutputFile.TypingImports, "Optional")
 			return fmt.Sprintf("Optional[%s]", wrapperType)
 		}
-		if sourceType == ".google.protobuf.Duration" {
+		if sourceType == "google.protobuf.Duration" {
 			m.OutputFile.DatetimeImports = append(m.OutputFile.DatetimeImports, "timedelta")
 			return "timedelta"
 		}
-		if sourceType == ".google.protobuf.Timestamp" {
+		if sourceType == "google.protobuf.Timestamp" {
 			m.OutputFile.DatetimeImports = append(m.OutputFile.DatetimeImports, "datetime")
 			return "datetime"
 		}
 	}
 	sourcePackage, sourceType := parseSourceTypeName(sourceType)
+	pkg := from.GetPackage()
 	currentPackage := strings.Split(pkg, ".")
 	pyPackage := strings.Split(sourcePackage, ".")
 	pyType := formatClassName(sourceType)
 
-	compilingGoogleProtobuf := slices.Equal(currentPackage, []string{"google", "protobuf"})
-	importingGoogleProtobuf := slices.Equal(pyPackage, []string{"google", "protobuf"})
-
-	if importingGoogleProtobuf && !compilingGoogleProtobuf {
+	if slices.Equal(pyPackage, []string{"google", "protobuf"}) {
 		pyPackage = append([]string{"betterproto", "lib"}, pyPackage...)
 	}
 
@@ -66,7 +67,7 @@ func (m *Model) getTypeReference(pkg string, imports []*desc.FileDescriptor, sou
 	case slices.Equal(pyPackage[:1], []string{"betterproto"}):
 		ref, addImports = referenceAbsolute(imports, pyPackage, pyType)
 	case slices.Equal(pyPackage, currentPackage):
-		ref, addImports = referenceSibling(pyType)
+		ref, addImports = referenceSibling(from, to, pyType)
 	case slices.Equal(pyPackage[:len(currentPackage)], currentPackage):
 		ref, addImports = referenceDescendent(currentPackage, imports, pyPackage, pyType)
 	case slices.Equal(currentPackage[:len(pyPackage)], pyPackage):
@@ -84,8 +85,13 @@ func referenceAbsolute(imports []*desc.FileDescriptor, pyPackage []string, pyTyp
 	return fmt.Sprintf("%s.%s", stringAlias, pyType), []string{fmt.Sprintf("import %s as %s", stringImport, stringAlias)}
 }
 
-func referenceSibling(pyType string) (_ string, addImports []string) {
-	return pyType, nil
+func referenceSibling(from, to *desc.FileDescriptor, pyType string) (_ string, addImports []string) {
+	// check if the files are the same, if not we need to add an import
+	if from.GetName() != to.GetFile().GetName() {
+		filename := strings.TrimSuffix(filepath.Base(to.GetName()), filepath.Ext(to.GetName())) + "_pb"
+		addImports = append(addImports, fmt.Sprintf("from .%s import %s", filename, pyType))
+	}
+	return pyType, addImports
 }
 
 func referenceDescendent(currentPackage []string, imports []*desc.FileDescriptor, pyPackage []string, pyType string) (ref string, addImports []string) {
