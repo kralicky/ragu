@@ -5,7 +5,7 @@ import (
 	"google.golang.org/protobuf/compiler/protogen"
 )
 
-const version = "1.2.0"
+const version = "1.3.0"
 
 var requireUnimplemented *bool = lo.ToPtr(true)
 

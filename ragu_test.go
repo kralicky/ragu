@@ -3,11 +3,11 @@ package ragu_test
 import (
 	"testing"
 
-	ragu2 "github.com/kralicky/ragu"
+	"github.com/kralicky/ragu"
 )
 
 func TestGenerateCode(t *testing.T) {
-	out, err := ragu2.GenerateCode(ragu2.AllGenerators(), "**/*.proto")
+	out, err := ragu.GenerateCode(ragu.AllGenerators(), "**/*.proto")
 	if err != nil {
 		t.Fatal(err)
 	}
