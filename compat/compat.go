@@ -24,6 +24,8 @@ const k8sVendorPrefix = "k8s.io/kubernetes/vendor/"
 func init() {
 	gproto.RegisterFile("github.com/gogo/protobuf/gogoproto/gogo.proto", gproto.FileDescriptor("gogo.proto"))
 	LoadGogoFileDescriptor("github.com/gogo/protobuf/gogoproto/gogo.proto")
+	gproto.RegisterFile("gogoproto/gogo.proto", gproto.FileDescriptor("gogo.proto"))
+	LoadGogoFileDescriptor("gogoproto/gogo.proto")
 }
 
 func LoadGogoFileDescriptor(filename string) {
@@ -65,7 +67,7 @@ func createGogoFileDescWithDeps(filename string, seen map[string]*dpb.FileDescri
 	}
 	var fileDesc *dpb.FileDescriptorProto
 	fn := filename
-	if fn == "github.com/gogo/protobuf/gogoproto/gogo.proto" {
+	if fn == "github.com/gogo/protobuf/gogoproto/gogo.proto" || fn == "gogoproto/gogo.proto" {
 		fn = "gogo.proto"
 	}
 	if raw := gproto.FileDescriptor(fn); raw != nil {
@@ -79,15 +81,18 @@ func createGogoFileDescWithDeps(filename string, seen map[string]*dpb.FileDescri
 		} else if strings.HasPrefix(fn, k8sVendorPrefix) {
 			*fd.Name = strings.TrimPrefix(fn, k8sVendorPrefix)
 		}
-	} else if fd, err := desc.LoadFileDescriptor(filename); err == nil {
+	} else if fd, err := desc.LoadFileDescriptor(fn); err == nil {
 		fileDesc = fd.AsFileDescriptorProto()
 	} else {
-		panic("failed to load file descriptor: " + filename)
+		panic("failed to load file descriptor: " + fn)
 	}
 
 	var fileDescs []*dpb.FileDescriptorProto
 	seen[filename] = fileDesc
-	for _, dep := range fileDesc.GetDependency() {
+	for i, dep := range fileDesc.Dependency {
+		if dep == "gogo.proto" || dep == "gogoproto/gogo.proto" {
+			fileDesc.Dependency[i] = "github.com/gogo/protobuf/gogoproto/gogo.proto"
+		}
 		if _, ok := seen[dep]; !ok {
 			fileDescs = append(fileDescs, createGogoFileDescWithDeps(dep, seen)...)
 		}
