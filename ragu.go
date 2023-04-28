@@ -112,48 +112,47 @@ func GenerateCode(generators []Generator, sources ...string) (_ []*GeneratedFile
 				}
 			}
 		}
+	}
 
-		codeGeneratorRequest := &pluginpb.CodeGeneratorRequest{
-			FileToGenerate: []string{d.GetName()},
-			ProtoFile:      descs,
-			CompilerVersion: &pluginpb.Version{
-				Major: lo.ToPtr[int32](1),
-				Minor: lo.ToPtr[int32](0),
-				Patch: lo.ToPtr[int32](0),
-			},
-		}
+	codeGeneratorRequest := &pluginpb.CodeGeneratorRequest{
+		FileToGenerate: util.Map(descriptors, (*desc.FileDescriptor).GetName),
+		ProtoFile:      desc.ToFileDescriptorSet(descriptors...).File,
+		CompilerVersion: &pluginpb.Version{
+			Major: lo.ToPtr[int32](1),
+			Minor: lo.ToPtr[int32](0),
+			Patch: lo.ToPtr[int32](0),
+		},
+	}
+	plugin, err := (protogen.Options{}).New(codeGeneratorRequest)
+	if err != nil {
+		return nil, err
+	}
 
-		plugin, err := (protogen.Options{}).New(codeGeneratorRequest)
-		if err != nil {
+	for _, g := range generators {
+		if err := g.Generate(plugin); err != nil {
 			return nil, err
 		}
+	}
 
-		for _, g := range generators {
-			if err := g.Generate(plugin); err != nil {
-				return nil, err
-			}
-		}
+	response := plugin.Response()
+	if response.Error != nil {
+		return nil, errors.New(response.GetError())
+	}
 
-		response := plugin.Response()
-		if response.Error != nil {
-			return nil, errors.New(response.GetError())
+	for _, f := range response.GetFile() {
+		pkg, name := filepath.Split(f.GetName())
+		pkg = strings.TrimSuffix(pkg, "/")
+		dir, ok := sourcePkgDirs[pkg]
+		if !ok {
+			return nil, fmt.Errorf("bug: failed to find source package %q in list %v", pkg, lo.Keys(sourcePkgDirs))
 		}
-
-		for _, f := range response.GetFile() {
-			pkg, name := filepath.Split(f.GetName())
-			pkg = strings.TrimSuffix(pkg, "/")
-			dir, ok := sourcePkgDirs[pkg]
-			if !ok {
-				return nil, fmt.Errorf("bug: failed to find source package %q in list %v", pkg, lo.Keys(sourcePkgDirs))
-			}
-			relPath := path.Join(dir, name)
-			outputs = append(outputs, &GeneratedFile{
-				Name:          name,
-				Package:       pkg,
-				SourceRelPath: relPath,
-				Content:       f.GetContent(),
-			})
-		}
+		relPath := path.Join(dir, name)
+		outputs = append(outputs, &GeneratedFile{
+			Name:          name,
+			Package:       pkg,
+			SourceRelPath: relPath,
+			Content:       f.GetContent(),
+		})
 	}
 
 	return outputs, nil
