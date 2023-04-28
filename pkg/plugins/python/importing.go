@@ -89,7 +89,7 @@ func referenceSibling(from, to *desc.FileDescriptor, pyType string) (_ string, a
 	// check if the files are the same, if not we need to add an import
 	if from.GetName() != to.GetFile().GetName() {
 		filename := strings.TrimSuffix(filepath.Base(to.GetName()), filepath.Ext(to.GetName())) + "_pb"
-		addImports = append(addImports, fmt.Sprintf("from .%s import %s", filename, pyType))
+		addImports = append(addImports, fmt.Sprintf("from %s import %s", filename, pyType))
 	}
 	return pyType, addImports
 }
