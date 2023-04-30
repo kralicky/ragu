@@ -3,6 +3,14 @@ package grpc
 import (
 	"github.com/samber/lo"
 	"google.golang.org/protobuf/compiler/protogen"
+
+	_ "google.golang.org/genproto/googleapis/api/annotations"
+	_ "google.golang.org/genproto/googleapis/rpc/code"
+	_ "google.golang.org/genproto/googleapis/rpc/context"
+	_ "google.golang.org/genproto/googleapis/rpc/context/attribute_context"
+	_ "google.golang.org/genproto/googleapis/rpc/errdetails"
+	_ "google.golang.org/genproto/googleapis/rpc/http"
+	_ "google.golang.org/genproto/googleapis/rpc/status"
 )
 
 const version = "1.3.0"

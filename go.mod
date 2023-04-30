@@ -8,17 +8,19 @@ require (
 	github.com/gogo/protobuf v1.3.2
 	github.com/golang/protobuf v1.5.3
 	github.com/iancoleman/strcase v0.2.0
-	github.com/jhump/protoreflect v1.14.1
+	github.com/jhump/protoreflect v1.15.1
 	github.com/kralicky/grpc-gateway/v2 v2.11.3
-	github.com/samber/lo v1.37.0
-	golang.org/x/exp v0.0.0-20230315142452-642cacee5cc0
-	golang.org/x/mod v0.9.0
-	google.golang.org/protobuf v1.29.1
+	github.com/samber/lo v1.38.1
+	golang.org/x/exp v0.0.0-20230425010034-47ecfdc1ba53
+	golang.org/x/mod v0.10.0
+	google.golang.org/genproto v0.0.0-20230410155749-daa745c078e1
+	google.golang.org/protobuf v1.30.0
 )
 
 require (
-	github.com/golang/glog v1.1.0 // indirect
-	golang.org/x/text v0.8.0 // indirect
-	google.golang.org/genproto v0.0.0-20230306155012-7f2fa6fef1f4 // indirect
+	github.com/bufbuild/protocompile v0.4.0 // indirect
+	github.com/golang/glog v1.1.1 // indirect
+	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c // indirect
+	golang.org/x/text v0.9.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

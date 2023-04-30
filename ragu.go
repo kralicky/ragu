@@ -15,7 +15,6 @@ import (
 	"github.com/kralicky/ragu/pkg/util"
 	"github.com/samber/lo"
 	"google.golang.org/protobuf/compiler/protogen"
-	"google.golang.org/protobuf/types/descriptorpb"
 	"google.golang.org/protobuf/types/pluginpb"
 )
 
@@ -86,37 +85,27 @@ func GenerateCode(generators []Generator, sources ...string) (_ []*GeneratedFile
 		Accessor:                        SourceAccessor(sourcePackages),
 		LookupImport:                    desc.LoadFileDescriptor,
 	}
-	descriptors, err := parser.ParseFiles(lo.Keys(sourcePackages)...)
+	sourceDescriptors, err := parser.ParseFiles(lo.Keys(sourcePackages)...)
 	if err != nil {
 		return nil, err
 	}
+	allDescriptors := desc.ToFileDescriptorSet(sourceDescriptors...).File
 
-	outputs := []*GeneratedFile{}
-	for _, d := range descriptors {
-		descs := util.Map(recursiveDeps(d, map[string]struct{}{}), (*desc.FileDescriptor).AsFileDescriptorProto)
-
-		for _, desc := range descs {
-			if desc.SourceCodeInfo == nil {
-				// Some generators will complain if SourceCodeInfo is nil
-				desc.SourceCodeInfo = &descriptorpb.SourceCodeInfo{
-					Location: []*descriptorpb.SourceCodeInfo_Location{},
-				}
-			}
-			// fix up any incomplete go_package options if we have the info available
-			// this will transform e.g. `go_package = "bar"` to `go_package = "github.com/foo/bar"`
-			goPackage := desc.GetOptions().GetGoPackage()
-			if !strings.Contains(goPackage, ".") && !strings.Contains(goPackage, "/") {
-				p := path.Dir(desc.GetName())
-				if strings.HasSuffix(p, goPackage) {
-					*desc.Options.GoPackage = p
-				}
+	for _, desc := range allDescriptors {
+		// fix up any incomplete go_package options if we have the info available
+		// this will transform e.g. `go_package = "bar"` to `go_package = "github.com/foo/bar"`
+		goPackage := desc.GetOptions().GetGoPackage()
+		if !strings.Contains(goPackage, ".") && !strings.Contains(goPackage, "/") {
+			p := path.Dir(desc.GetName())
+			if strings.HasSuffix(p, goPackage) {
+				*desc.Options.GoPackage = p
 			}
 		}
 	}
 
 	codeGeneratorRequest := &pluginpb.CodeGeneratorRequest{
-		FileToGenerate: util.Map(descriptors, (*desc.FileDescriptor).GetName),
-		ProtoFile:      desc.ToFileDescriptorSet(descriptors...).File,
+		FileToGenerate: util.Map(sourceDescriptors, (*desc.FileDescriptor).GetName),
+		ProtoFile:      allDescriptors,
 		CompilerVersion: &pluginpb.Version{
 			Major: lo.ToPtr[int32](1),
 			Minor: lo.ToPtr[int32](0),
@@ -139,6 +128,7 @@ func GenerateCode(generators []Generator, sources ...string) (_ []*GeneratedFile
 		return nil, errors.New(response.GetError())
 	}
 
+	var outputs []*GeneratedFile
 	for _, f := range response.GetFile() {
 		pkg, name := filepath.Split(f.GetName())
 		pkg = strings.TrimSuffix(pkg, "/")
@@ -156,19 +146,6 @@ func GenerateCode(generators []Generator, sources ...string) (_ []*GeneratedFile
 	}
 
 	return outputs, nil
-}
-
-func recursiveDeps(d *desc.FileDescriptor, alreadySeen map[string]struct{}) []*desc.FileDescriptor {
-	if _, ok := alreadySeen[d.GetName()]; ok {
-		return nil
-	}
-	alreadySeen[d.GetName()] = struct{}{}
-	deps := []*desc.FileDescriptor{}
-	for _, dep := range d.GetDependencies() {
-		deps = append(deps, recursiveDeps(dep, alreadySeen)...)
-	}
-	deps = append(deps, d)
-	return deps
 }
 
 func resolvePatterns(sources []string) ([]string, error) {
