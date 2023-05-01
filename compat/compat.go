@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"strings"
+	"sync"
 
 	_ "github.com/gogo/protobuf/gogoproto"
 	gproto "github.com/gogo/protobuf/proto"
@@ -28,8 +29,50 @@ func init() {
 	LoadGogoFileDescriptor("gogoproto/gogo.proto")
 }
 
-func LoadGogoFileDescriptor(filename string) {
-	fileDescs := createGogoFileDescWithDeps(filename, make(map[string]*dpb.FileDescriptorProto))
+var (
+	alreadyLoadedFilesMu sync.Mutex
+	alreadyLoadedFiles   = map[string]struct{}{}
+)
+
+type CompatLoadOptions struct {
+	rename string
+}
+
+type CompatLoadOption func(*CompatLoadOptions)
+
+func (o *CompatLoadOptions) apply(opts ...CompatLoadOption) {
+	for _, op := range opts {
+		op(o)
+	}
+}
+
+func WithRename(importPath string) CompatLoadOption {
+	return func(o *CompatLoadOptions) {
+		o.rename = importPath
+	}
+}
+
+func LoadGogoFileDescriptor(filename string, opts ...CompatLoadOption) {
+	alreadyLoadedFilesMu.Lock()
+	options := CompatLoadOptions{}
+	options.apply(opts...)
+
+	key := filename
+	if options.rename != "" {
+		key = options.rename
+	}
+	defer alreadyLoadedFilesMu.Unlock()
+	if _, ok := alreadyLoadedFiles[key]; ok {
+		return
+	}
+
+	alreadyLoadedFiles[key] = struct{}{}
+
+	fileDescs := createGogoFileDescWithDeps(createOptions{
+		filename: filename,
+		rename:   options.rename,
+		seen:     map[string]*descriptorpb.FileDescriptorProto{},
+	})
 	descriptors, err := desc.CreateFileDescriptors(fileDescs)
 	if err != nil {
 		panic(err)
@@ -58,11 +101,18 @@ func LoadGogoFileDescriptor(filename string) {
 	})
 }
 
-func createGogoFileDescWithDeps(filename string, seen map[string]*dpb.FileDescriptorProto) []*dpb.FileDescriptorProto {
+type createOptions struct {
+	filename string
+	rename   string
+	seen     map[string]*dpb.FileDescriptorProto
+}
+
+func createGogoFileDescWithDeps(o createOptions) []*dpb.FileDescriptorProto {
+	filename := o.filename
 	if strings.HasPrefix(filename, "k8s.io") && !strings.HasPrefix(filename, k8sVendorPrefix) {
 		filename = k8sVendorPrefix + filename
 	}
-	if _, ok := seen[filename]; ok {
+	if _, ok := o.seen[filename]; ok {
 		return []*dpb.FileDescriptorProto{}
 	}
 	var fileDesc *dpb.FileDescriptorProto
@@ -75,12 +125,15 @@ func createGogoFileDescWithDeps(filename string, seen map[string]*dpb.FileDescri
 		if err != nil {
 			panic(err)
 		}
-		fileDesc = fd
+		if o.rename != "" {
+			fd.Name = &o.rename
+		}
 		if fn == "gogo.proto" {
 			*fd.Name = "github.com/gogo/protobuf/gogoproto/gogo.proto"
 		} else if strings.HasPrefix(fn, k8sVendorPrefix) {
 			*fd.Name = strings.TrimPrefix(fn, k8sVendorPrefix)
 		}
+		fileDesc = fd
 	} else if fd, err := desc.LoadFileDescriptor(fn); err == nil {
 		fileDesc = fd.AsFileDescriptorProto()
 	} else {
@@ -88,13 +141,16 @@ func createGogoFileDescWithDeps(filename string, seen map[string]*dpb.FileDescri
 	}
 
 	var fileDescs []*dpb.FileDescriptorProto
-	seen[filename] = fileDesc
+	o.seen[filename] = fileDesc
 	for i, dep := range fileDesc.Dependency {
 		if dep == "gogo.proto" || dep == "gogoproto/gogo.proto" {
 			fileDesc.Dependency[i] = "github.com/gogo/protobuf/gogoproto/gogo.proto"
 		}
-		if _, ok := seen[dep]; !ok {
-			fileDescs = append(fileDescs, createGogoFileDescWithDeps(dep, seen)...)
+		if _, ok := o.seen[dep]; !ok {
+			fileDescs = append(fileDescs, createGogoFileDescWithDeps(createOptions{
+				filename: dep,
+				seen:     o.seen,
+			})...)
 		}
 	}
 	fileDescs = append(fileDescs, fileDesc)
