@@ -11,7 +11,6 @@ import (
 
 	"github.com/bmatcuk/doublestar"
 	"github.com/jhump/protoreflect/desc"
-	"github.com/jhump/protoreflect/desc/protoparse"
 	"github.com/kralicky/ragu/pkg/util"
 	"github.com/samber/lo"
 	"google.golang.org/protobuf/compiler/protogen"
@@ -61,7 +60,7 @@ func GenerateCode(generators []Generator, sources ...string) (_ []*GeneratedFile
 		}
 	}()
 
-	if resolved, err := resolvePatterns(sources); err != nil {
+	if resolved, err := ResolvePatterns(sources); err != nil {
 		return nil, err
 	} else {
 		sources = resolved
@@ -70,7 +69,7 @@ func GenerateCode(generators []Generator, sources ...string) (_ []*GeneratedFile
 	sourcePackages := map[string]string{}
 	sourcePkgDirs := map[string]string{}
 	for _, source := range sources {
-		goPkg, err := fastLookupGoModule(source)
+		goPkg, err := FastLookupGoModule(source)
 		if err != nil {
 			return nil, fmt.Errorf("failed to lookup go module for %s: %w", source, err)
 		}
@@ -78,14 +77,7 @@ func GenerateCode(generators []Generator, sources ...string) (_ []*GeneratedFile
 		sourcePackages[path.Join(goPkg, path.Base(source))] = source
 	}
 
-	parser := protoparse.Parser{
-		InferImportPaths:                false,
-		IncludeSourceCodeInfo:           true,
-		InterpretOptionsInUnlinkedFiles: true,
-		Accessor:                        SourceAccessor(sourcePackages),
-		LookupImport:                    desc.LoadFileDescriptor,
-	}
-	sourceDescriptors, err := parser.ParseFiles(lo.Keys(sourcePackages)...)
+	sourceDescriptors, err := ParseFiles(SourceAccessor(sourcePackages), lo.Keys(sourcePackages)...)
 	if err != nil {
 		return nil, err
 	}
@@ -148,7 +140,7 @@ func GenerateCode(generators []Generator, sources ...string) (_ []*GeneratedFile
 	return outputs, nil
 }
 
-func resolvePatterns(sources []string) ([]string, error) {
+func ResolvePatterns(sources []string) ([]string, error) {
 	resolved := []string{}
 	for _, source := range sources {
 		if strings.Contains(source, "*") {
@@ -164,7 +156,7 @@ func resolvePatterns(sources []string) ([]string, error) {
 	return resolved, nil
 }
 
-func fastLookupGoModule(filename string) (string, error) {
+func FastLookupGoModule(filename string) (string, error) {
 	// Search the .proto file for `option go_package = "...";`
 	// We know this will be somewhere at the top of the file.
 	f, err := os.Open(filename)
