@@ -20,13 +20,25 @@ message Test {
 service Service1 {
   // Method Comment
   rpc TestEmpty(google.protobuf.Empty) returns (Test);
+  // foo
+
+  // bar
+
+  // baz
   rpc Testing(Test) returns (Test) {
     option (google.api.http) = {
-      postt: "/testing"
+      post: "/testing"
       body: "*"
+      additional_bindings: {
+        custom: {
+          kind: "PATCH"
+          path: "/testing2"
+        }
+      }
     };
   }
 }
+
 
 message Test2 {
 }
@@ -37,11 +49,20 @@ extend google.protobuf.MessageOptions {
   optional google.protobuf.Any any = 12345;
 }
 
+extend google.protobuf.FileOptions {
+  Foo fooOption = 12345;
+}
+
+option (fooOption) = {
+  a: "foo"
+  b: -1
+};
+
 message Baz {
   option (any) = {
-    [type.googleapis.com/foo.bar.Foo] <
-      a: "abc"
-      b: 123
+    [type.googleapis.com/grpc1.Foo] <
+      a: "foo"
+      b: 1234567
     >
   };
 }

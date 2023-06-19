@@ -2,7 +2,9 @@ package ragu
 
 import (
 	"context"
+	"fmt"
 	"io"
+	"os"
 
 	"github.com/bufbuild/protocompile"
 	"github.com/bufbuild/protocompile/linker"
@@ -36,8 +38,13 @@ func ParseFiles(accessor FileAccessor, filenames ...string) ([]*desc.FileDescrip
 	c := protocompile.Compiler{
 		Resolver:       res,
 		MaxParallelism: -1,
-		SourceInfoMode: protocompile.SourceInfoExtraComments,
-		Reporter:       reporter.NewReporter(nil, nil),
+		SourceInfoMode: protocompile.SourceInfoExtraComments | protocompile.SourceInfoExtraOptionLocations,
+		Reporter: reporter.NewReporter(func(err reporter.ErrorWithPos) error {
+			fmt.Fprintln(os.Stderr, err.Error())
+			return nil
+		}, func(ewp reporter.ErrorWithPos) {
+			fmt.Fprintln(os.Stderr, ewp.Error())
+		}),
 	}
 	results, err := c.Compile(context.Background(), filenames...)
 	if err != nil {
