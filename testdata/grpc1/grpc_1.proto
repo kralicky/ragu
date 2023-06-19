@@ -2,6 +2,9 @@ syntax = "proto3";
 option go_package = "github.com/kralicky/ragu/testdata/grpc1";
 import "google/api/annotations.proto";
 import "google/rpc/status.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/any.proto";
+import "google/protobuf/descriptor.proto";
 
 package grpc1;
 
@@ -16,10 +19,29 @@ message Test {
 // Service Comment
 service Service1 {
   // Method Comment
+  rpc TestEmpty(google.protobuf.Empty) returns (Test);
   rpc Testing(Test) returns (Test) {
     option (google.api.http) = {
-      post: "/testing"
+      postt: "/testing"
       body: "*"
     };
   }
+}
+
+message Test2 {
+}
+
+message Foo { string a = 1; int32 b = 2; }
+
+extend google.protobuf.MessageOptions {
+  optional google.protobuf.Any any = 12345;
+}
+
+message Baz {
+  option (any) = {
+    [type.googleapis.com/foo.bar.Foo] <
+      a: "abc"
+      b: 123
+    >
+  };
 }

@@ -33,14 +33,10 @@ github.com/kralicky/grpc-gateway/v2 v2.15.2 h1:Br+ry5CA32dBJaaxKI8PETF7gttNCYNPD
 github.com/kralicky/grpc-gateway/v2 v2.15.2/go.mod h1:ePTuViliVBRsU46UlseYjmVkYPUVmF/5hDvzta5WqoU=
 github.com/kralicky/tools v0.0.0-20230614234516-e1d90db7570d h1:8aYtDJWrrZH2bNIJmly9zzIPe5vUDHCssvAZOdt8amk=
 github.com/kralicky/tools v0.0.0-20230614234516-e1d90db7570d/go.mod h1:UJwyiVBsOA2uwvK/e5OY3GTpDUJriEd+/YlqAwLPmyM=
-github.com/kralicky/tools/gopls v0.0.0-20230614234516-e1d90db7570d h1:y1qMCJA9aq04elwUikh6AeEid4NBpdmt+WXHVOcutSg=
-github.com/kralicky/tools/gopls v0.0.0-20230614234516-e1d90db7570d/go.mod h1:81Dde7cgewAWdYjzmNzNvBjZBk0a+V5+pm2FTmzUVwA=
 github.com/pkg/errors v0.8.1 h1:iURUrRGxPUNPdy5/HRSm+Yj6okJ6UtLINN0Q9M4+h3I=
 github.com/pkg/errors v0.8.1/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
-github.com/rdleal/intervalst v0.0.0-20221028215511-a098aa0d2cb8 h1:5jSBlCYQYquRF8Zch4QrimJcX7/H1qbWQEAzYNxMubc=
-github.com/rdleal/intervalst v0.0.0-20221028215511-a098aa0d2cb8/go.mod h1:xO89Z6BC+LQDH+IPQQw/OESt5UADgFD41tYMUINGpxQ=
 github.com/samber/lo v1.38.1 h1:j2XEAqXKb09Am4ebOg31SpvzUTTs6EN3VfgeLUhPdXM=
 github.com/samber/lo v1.38.1/go.mod h1:+m/ZKRl6ClXCE2Lgf3MsQlWfh4bn1bz6CXEOxnEXnEA=
 github.com/spf13/pflag v1.0.5 h1:iy+VFUOCP1a+8yFto/drg2CJ5u0yRoB7fZw3DKv/JXA=

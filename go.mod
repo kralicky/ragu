@@ -11,7 +11,6 @@ require (
 	github.com/iancoleman/strcase v0.2.0
 	github.com/jhump/protoreflect v1.15.1
 	github.com/kralicky/grpc-gateway/v2 v2.15.2
-	github.com/rdleal/intervalst v0.0.0-20221028215511-a098aa0d2cb8
 	github.com/samber/lo v1.38.1
 	github.com/spf13/pflag v1.0.5
 	go.uber.org/zap v1.21.0
@@ -38,6 +37,8 @@ require (
 
 replace github.com/bufbuild/protocompile => ../protocompile
 
+replace golang.org/x/tools/gopls => ../tools/gopls
+
 replace golang.org/x/tools => github.com/kralicky/tools v0.0.0-20230614234516-e1d90db7570d
 
-replace golang.org/x/tools/gopls => github.com/kralicky/tools/gopls v0.0.0-20230614234516-e1d90db7570d
+// replace golang.org/x/tools/gopls => github.com/kralicky/tools/gopls v0.0.0-20230614234516-e1d90db7570d

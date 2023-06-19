@@ -44,12 +44,12 @@ func ParseFiles(accessor FileAccessor, filenames ...string) ([]*desc.FileDescrip
 		return nil, err
 	}
 
-	fds := make([]protoreflect.FileDescriptor, len(results))
-	for i, result := range results {
+	fds := make([]protoreflect.FileDescriptor, len(results.Files))
+	for i, result := range results.Files {
 		if linkRes, ok := result.(linker.Result); ok {
 			removeDynamicExtensions(linkRes.FileDescriptorProto())
 		}
-		fds[i] = results[i]
+		fds[i] = results.Files[i]
 	}
 	return desc.WrapFiles(fds)
 }
