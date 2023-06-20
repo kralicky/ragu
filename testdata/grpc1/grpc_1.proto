@@ -43,7 +43,12 @@ service Service1 {
 message Test2 {
 }
 
-message Foo { string a = 1; int32 b = 2; }
+message Foo {
+  string a = 1;
+  int32 b = 2;
+  repeated Foo2 foos = 3;
+  repeated string strs = 4;
+ }
 
 extend google.protobuf.MessageOptions {
   optional google.protobuf.Any any = 12345;
@@ -56,6 +61,8 @@ extend google.protobuf.FileOptions {
 option (fooOption) = {
   a: "foo"
   b: -1
+  strs: ["abc", "def"]
+  foos [<strs:'foo'>, <strs:'bar'>]
 };
 
 message Baz {
@@ -66,3 +73,11 @@ message Baz {
     >
   };
 }
+
+enum Proto3Enum {
+	UNKNOWN = 0;
+	VALUE1 = 1;
+	VALUE2 = 2;
+}
+
+message Foo2 { repeated string strs = 1; repeated Foo2 foos = 2; }
