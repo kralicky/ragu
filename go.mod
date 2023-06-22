@@ -10,6 +10,7 @@ require (
 	github.com/golang/protobuf v1.5.3
 	github.com/iancoleman/strcase v0.2.0
 	github.com/jhump/protoreflect v1.15.1
+	github.com/kralicky/gpkg v0.0.0-20220311205216-0d8ea9557555
 	github.com/kralicky/grpc-gateway/v2 v2.15.2
 	github.com/samber/lo v1.38.1
 	github.com/spf13/pflag v1.0.5
@@ -37,8 +38,12 @@ require (
 
 replace github.com/bufbuild/protocompile => ../protocompile
 
+replace github.com/jhump/protoreflect => ../protoreflect
+
 replace golang.org/x/tools/gopls => ../tools/gopls
 
-replace golang.org/x/tools => github.com/kralicky/tools v0.0.0-20230614234516-e1d90db7570d
+replace golang.org/x/tools => ../tools
+
+// replace golang.org/x/tools => github.com/kralicky/tools v0.0.0-20230614234516-e1d90db7570d
 
 // replace golang.org/x/tools/gopls => github.com/kralicky/tools/gopls v0.0.0-20230614234516-e1d90db7570d
