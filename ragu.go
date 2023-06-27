@@ -126,7 +126,11 @@ func GenerateCode(generators []Generator, sources ...string) (_ []*GeneratedFile
 		pkg = strings.TrimSuffix(pkg, "/")
 		dir, ok := sourcePkgDirs[pkg]
 		if !ok {
-			return nil, fmt.Errorf("bug: failed to find source package %q in list %v", pkg, lo.Keys(sourcePkgDirs))
+			if strings.Contains(pkg, "google/") {
+				dir = pkg[strings.Index(pkg, "google/"):]
+			} else {
+				dir = pkg
+			}
 		}
 		relPath := path.Join(dir, name)
 		outputs = append(outputs, &GeneratedFile{
