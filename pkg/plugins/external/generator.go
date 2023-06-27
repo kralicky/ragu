@@ -18,24 +18,35 @@ type GeneratorOptions struct {
 	CodeGeneratorResponseHook func(*pluginpb.CodeGeneratorResponse)
 }
 
-func NewGenerator(pluginPath string, opts GeneratorOptions) *extGenerator {
-	return &extGenerator{
-		GeneratorOptions: opts,
-		pluginPath:       pluginPath,
+func NewGenerator[T string | []string](pluginPath T, opts GeneratorOptions) *extGenerator {
+	switch pluginPath := any(pluginPath).(type) {
+	case string:
+		return &extGenerator{
+			GeneratorOptions: opts,
+			pluginCmd:        pluginPath,
+		}
+	case []string:
+		return &extGenerator{
+			GeneratorOptions: opts,
+			pluginCmd:        pluginPath[0],
+			pluginArgs:       pluginPath[1:],
+		}
 	}
+	panic("unreachable")
 }
 
 type extGenerator struct {
 	GeneratorOptions
-	pluginPath string
+	pluginCmd  string
+	pluginArgs []string
 }
 
 func (g *extGenerator) Name() string {
-	return "x-" + path.Base(g.pluginPath)
+	return "x-" + path.Base(g.pluginCmd)
 }
 
 func (g *extGenerator) Generate(gen *protogen.Plugin) error {
-	cmd := exec.Command(g.pluginPath)
+	cmd := exec.Command(g.pluginCmd, g.pluginArgs...)
 	stdin, _ := cmd.StdinPipe()
 	stdout, _ := cmd.StdoutPipe()
 	cmd.Stderr = os.Stderr
