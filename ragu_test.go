@@ -1,7 +1,6 @@
 package ragu_test
 
 import (
-	"os/exec"
 	"testing"
 
 	"github.com/kralicky/ragu"
@@ -22,13 +21,22 @@ func TestGenerateCode(t *testing.T) {
 }
 
 func TestExternal(t *testing.T) {
-	esGenerator, err := exec.LookPath("protoc-gen-es")
+	out, err := ragu.GenerateCode([]ragu.Generator{
+		golang.Generator,
+		external.NewGenerator([]string{"npx", "protoc-gen-es"}, external.GeneratorOptions{Opt: "target=ts"}),
+	}, "**/*.proto")
 	if err != nil {
 		t.Fatal(err)
 	}
-	out, err := ragu.GenerateCode([]ragu.Generator{
+	for _, f := range out {
+		if err := f.WriteToDisk(); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	out, err = ragu.GenerateCode([]ragu.Generator{
 		golang.Generator,
-		external.NewGenerator(esGenerator, external.GeneratorOptions{Opt: "target=ts"}),
+		external.NewGenerator("protoc-gen-es", external.GeneratorOptions{Opt: "target=ts"}),
 	}, "**/*.proto")
 	if err != nil {
 		t.Fatal(err)
