@@ -3,6 +3,7 @@ package external
 import (
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
 	"path"
 
@@ -11,16 +12,22 @@ import (
 	"google.golang.org/protobuf/types/pluginpb"
 )
 
-func NewGenerator(pluginPath string, opt string) *extGenerator {
+type GeneratorOptions struct {
+	Opt                       string
+	CodeGeneratorRequestHook  func(*pluginpb.CodeGeneratorRequest)
+	CodeGeneratorResponseHook func(*pluginpb.CodeGeneratorResponse)
+}
+
+func NewGenerator(pluginPath string, opts GeneratorOptions) *extGenerator {
 	return &extGenerator{
-		pluginPath: pluginPath,
-		option:     opt,
+		GeneratorOptions: opts,
+		pluginPath:       pluginPath,
 	}
 }
 
 type extGenerator struct {
+	GeneratorOptions
 	pluginPath string
-	option     string
 }
 
 func (g *extGenerator) Name() string {
@@ -31,11 +38,16 @@ func (g *extGenerator) Generate(gen *protogen.Plugin) error {
 	cmd := exec.Command(g.pluginPath)
 	stdin, _ := cmd.StdinPipe()
 	stdout, _ := cmd.StdoutPipe()
+	cmd.Stderr = os.Stderr
 
 	reqClone := proto.Clone(gen.Request).(*pluginpb.CodeGeneratorRequest)
-	if g.option != "" {
-		reqClone.Parameter = &g.option
+	if g.Opt != "" {
+		reqClone.Parameter = &g.Opt
 	}
+	if g.CodeGeneratorRequestHook != nil {
+		g.CodeGeneratorRequestHook(reqClone)
+	}
+
 	requestWire, err := proto.Marshal(reqClone)
 	if err != nil {
 		return err
@@ -59,7 +71,7 @@ func (g *extGenerator) Generate(gen *protogen.Plugin) error {
 	}
 
 	if err := cmd.Wait(); err != nil {
-		return err
+		return fmt.Errorf("plugin error: %w", err)
 	}
 
 	response := &pluginpb.CodeGeneratorResponse{}
@@ -71,6 +83,9 @@ func (g *extGenerator) Generate(gen *protogen.Plugin) error {
 		return fmt.Errorf("plugin error: %s", response.GetError())
 	}
 
+	if g.CodeGeneratorResponseHook != nil {
+		g.CodeGeneratorResponseHook(response)
+	}
 	for i, f := range response.File {
 		if f.GetName() == "" {
 			continue

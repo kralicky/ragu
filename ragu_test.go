@@ -28,7 +28,7 @@ func TestExternal(t *testing.T) {
 	}
 	out, err := ragu.GenerateCode([]ragu.Generator{
 		golang.Generator,
-		external.NewGenerator(esGenerator, "target=ts"),
+		external.NewGenerator(esGenerator, external.GeneratorOptions{Opt: "target=ts"}),
 	}, "**/*.proto")
 	if err != nil {
 		t.Fatal(err)

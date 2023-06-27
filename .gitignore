@@ -3,3 +3,4 @@ dev/
 testdata/**/*.go
 testdata/**/*.py
 testdata/**/*.json
+testdata/**/*.ts
