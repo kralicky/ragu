@@ -64,13 +64,13 @@ func (m *Model) getTypeReference(from, to *desc.FileDescriptor, imports []*desc.
 	var ref string
 	var addImports []string
 	switch {
-	case slices.Equal(pyPackage[:1], []string{"betterproto"}):
+	case len(pyPackage) > 0 && slices.Equal(pyPackage[:1], []string{"betterproto"}):
 		ref, addImports = referenceAbsolute(imports, pyPackage, pyType)
 	case slices.Equal(pyPackage, currentPackage):
 		ref, addImports = referenceSibling(from, to, pyType)
-	case slices.Equal(pyPackage[:len(currentPackage)], currentPackage):
+	case len(pyPackage) >= len(currentPackage) && slices.Equal(pyPackage[:len(currentPackage)], currentPackage):
 		ref, addImports = referenceDescendent(currentPackage, imports, pyPackage, pyType)
-	case slices.Equal(currentPackage[:len(pyPackage)], pyPackage):
+	case len(currentPackage) >= len(pyPackage) && slices.Equal(currentPackage[:len(pyPackage)], pyPackage):
 		ref, addImports = referenceAncestor(currentPackage, imports, pyPackage, pyType)
 	default:
 		ref, addImports = referenceCousin(currentPackage, imports, pyPackage, pyType)

@@ -1,7 +1,6 @@
 package ragu
 
 import (
-	"bufio"
 	"errors"
 	"fmt"
 	"os"
@@ -10,10 +9,11 @@ import (
 	"strings"
 
 	"github.com/bmatcuk/doublestar"
-	"github.com/jhump/protoreflect/desc"
-	"github.com/kralicky/ragu/pkg/util"
+	"github.com/kralicky/protols/codegen"
 	"github.com/samber/lo"
+	"go.uber.org/zap"
 	"google.golang.org/protobuf/compiler/protogen"
+	"google.golang.org/protobuf/types/descriptorpb"
 	"google.golang.org/protobuf/types/pluginpb"
 )
 
@@ -39,65 +39,57 @@ func (g *GeneratedFile) WriteToDisk() error {
 	return os.WriteFile(g.SourceRelPath, []byte(g.Content), 0644)
 }
 
-var commonMissingImports = map[string]string{
-	"unknown extension google.api.http": "google/api/annotations.proto",
-	"no message found: Status":          "google/rpc/status.proto",
-	"unknown extension grpc.gateway.protoc_gen_openapiv2.options.openapiv2_swagger": "github.com/kralicky/grpc-gateway/v2/protoc-gen-openapiv2/options/annotations.proto",
-}
-
 // Generates code for each source file (or files matching a glob pattern)
 // using one or more code generators.
-func GenerateCode(generators []Generator, sources ...string) (_ []*GeneratedFile, generateCodeErr error) {
-	defer func() {
-		if generateCodeErr == nil {
-			return
-		}
-		msg := generateCodeErr.Error()
-		for str, imp := range commonMissingImports {
-			if strings.Contains(msg, str) {
-				generateCodeErr = fmt.Errorf("%w (try importing %s)", generateCodeErr, imp)
-			}
-		}
-	}()
-
-	if resolved, err := ResolvePatterns(sources); err != nil {
-		return nil, err
-	} else {
-		sources = resolved
-	}
-
-	sourcePackages := map[string]string{}
-	sourcePkgDirs := map[string]string{}
-	for _, source := range sources {
-		goPkg, err := FastLookupGoModule(source)
-		if err != nil {
-			return nil, fmt.Errorf("failed to lookup go module for %s: %w", source, err)
-		}
-		sourcePkgDirs[goPkg] = filepath.Dir(source)
-		sourcePackages[path.Join(goPkg, path.Base(source))] = source
-	}
-
-	sourceDescriptors, err := ParseFiles(SourceAccessor(sourcePackages), lo.Keys(sourcePackages)...)
+func GenerateCode(generators []Generator, sources ...string) ([]*GeneratedFile, error) {
+	wd, err := os.Getwd()
 	if err != nil {
 		return nil, err
 	}
-	allDescriptors := desc.ToFileDescriptorSet(sourceDescriptors...).File
 
-	for _, desc := range allDescriptors {
+	driver := codegen.NewDriver(wd, zap.NewNop())
+	results, err := driver.Compile()
+	if err != nil {
+		return nil, err
+	}
+	for _, msg := range results.Messages {
+		fmt.Fprintln(os.Stderr, msg)
+	}
+	if results.Error {
+		return nil, fmt.Errorf("errors occurred during compilation")
+	}
+
+	sourcePkgDirs := map[string]string{}
+	for _, desc := range results.AllDescriptors {
+		uri := results.FileURIsByPath[desc.Path()]
+		if uri.IsFile() {
+			sourcePkgDirs[filepath.Dir(desc.Path())] = filepath.Dir(uri.Filename())
+		}
 		// fix up any incomplete go_package options if we have the info available
 		// this will transform e.g. `go_package = "bar"` to `go_package = "github.com/foo/bar"`
-		goPackage := desc.GetOptions().GetGoPackage()
+		goPackage := desc.Options().(*descriptorpb.FileOptions).GetGoPackage()
 		if !strings.Contains(goPackage, ".") && !strings.Contains(goPackage, "/") {
-			p := path.Dir(desc.GetName())
+			p := path.Dir(desc.Path())
 			if strings.HasSuffix(p, goPackage) {
-				*desc.Options.GoPackage = p
+				*desc.Options().(*descriptorpb.FileOptions).GoPackage = p
+			}
+		}
+	}
+
+	toGenerate := []string{}
+	for _, wd := range results.WorkspaceLocalDescriptors {
+		relPath := wd.Path()
+		for _, source := range sources {
+			if ok, _ := doublestar.Match(source, relPath); ok {
+				toGenerate = append(toGenerate, relPath)
+				break
 			}
 		}
 	}
 
 	codeGeneratorRequest := &pluginpb.CodeGeneratorRequest{
-		FileToGenerate: util.Map(sourceDescriptors, (*desc.FileDescriptor).GetName),
-		ProtoFile:      allDescriptors,
+		FileToGenerate: toGenerate,
+		ProtoFile:      results.AllDescriptorProtos,
 		CompilerVersion: &pluginpb.Version{
 			Major: lo.ToPtr[int32](1),
 			Minor: lo.ToPtr[int32](0),
@@ -142,60 +134,4 @@ func GenerateCode(generators []Generator, sources ...string) (_ []*GeneratedFile
 	}
 
 	return outputs, nil
-}
-
-func ResolvePatterns(sources []string) ([]string, error) {
-	resolved := []string{}
-	for _, source := range sources {
-		if strings.Contains(source, "*") {
-			matches, err := doublestar.Glob(source)
-			if err != nil {
-				return nil, err
-			}
-			resolved = append(resolved, matches...)
-		} else {
-			resolved = append(resolved, source)
-		}
-	}
-	return resolved, nil
-}
-
-func FastLookupGoModule(filename string) (string, error) {
-	// Search the .proto file for `option go_package = "...";`
-	// We know this will be somewhere at the top of the file.
-	f, err := os.Open(filename)
-	if err != nil {
-		return "", err
-	}
-	scan := bufio.NewScanner(f)
-	for scan.Scan() {
-		line := scan.Text()
-		if !strings.HasPrefix(line, "option") {
-			continue
-		}
-		index := strings.Index(line, "go_package")
-		if index == -1 {
-			continue
-		}
-		for ; index < len(line); index++ {
-			if line[index] == '=' {
-				break
-			}
-		}
-		for ; index < len(line); index++ {
-			if line[index] == '"' {
-				break
-			}
-		}
-		if index == len(line) {
-			continue
-		}
-		startIdx := index + 1
-		endIdx := strings.LastIndexByte(line, '"')
-		if endIdx <= startIdx {
-			continue
-		}
-		return line[startIdx:endIdx], nil
-	}
-	return "", fmt.Errorf("no go_package option found")
 }
