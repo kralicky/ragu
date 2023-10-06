@@ -8,11 +8,14 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/bmatcuk/doublestar"
 	"github.com/kralicky/protols/codegen"
+	"github.com/kralicky/protols/pkg/sources"
+	"github.com/kralicky/ragu/pkg/util"
 	"github.com/samber/lo"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/compiler/protogen"
+	"google.golang.org/protobuf/reflect/protodesc"
+	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/descriptorpb"
 	"google.golang.org/protobuf/types/pluginpb"
 )
@@ -39,16 +42,20 @@ func (g *GeneratedFile) WriteToDisk() error {
 	return os.WriteFile(g.SourceRelPath, []byte(g.Content), 0644)
 }
 
-// Generates code for each source file (or files matching a glob pattern)
+// Generates code for each source file found in the given search directories,
 // using one or more code generators.
-func GenerateCode(generators []Generator, sources ...string) ([]*GeneratedFile, error) {
+func GenerateCode(generators []Generator, searchDirs []string) ([]*GeneratedFile, error) {
 	wd, err := os.Getwd()
 	if err != nil {
 		return nil, err
 	}
-
+	for i, dir := range searchDirs {
+		if !filepath.IsAbs(dir) {
+			searchDirs[i] = filepath.Join(wd, dir)
+		}
+	}
 	driver := codegen.NewDriver(wd, zap.NewNop())
-	results, err := driver.Compile()
+	results, err := driver.Compile(sources.SearchDirs(searchDirs...))
 	if err != nil {
 		return nil, err
 	}
@@ -77,11 +84,11 @@ func GenerateCode(generators []Generator, sources ...string) ([]*GeneratedFile, 
 	}
 
 	toGenerate := []string{}
-	for _, wd := range results.WorkspaceLocalDescriptors {
-		relPath := wd.Path()
-		for _, source := range sources {
-			if ok, _ := doublestar.Match(source, relPath); ok {
-				toGenerate = append(toGenerate, relPath)
+	for _, desc := range results.WorkspaceLocalDescriptors {
+		dir := sourcePkgDirs[filepath.Dir(desc.Path())]
+		for _, searchDir := range searchDirs {
+			if strings.HasPrefix(dir, searchDir) {
+				toGenerate = append(toGenerate, desc.Path())
 				break
 			}
 		}
@@ -89,7 +96,9 @@ func GenerateCode(generators []Generator, sources ...string) ([]*GeneratedFile, 
 
 	codeGeneratorRequest := &pluginpb.CodeGeneratorRequest{
 		FileToGenerate: toGenerate,
-		ProtoFile:      results.AllDescriptorProtos,
+		ProtoFile: util.Map(results.AllDescriptors, func(f protoreflect.FileDescriptor) *descriptorpb.FileDescriptorProto {
+			return protodesc.ToFileDescriptorProto(f)
+		}),
 		CompilerVersion: &pluginpb.Version{
 			Major: lo.ToPtr[int32](1),
 			Minor: lo.ToPtr[int32](0),

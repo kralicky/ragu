@@ -1,7 +1,16 @@
 syntax = "proto3";
-option go_package = "github.com/kralicky/ragu/testdata/pkg1";
-import "google/protobuf/empty.proto";
 
 package pkg1;
 
-message Test2 { google.protobuf.Empty A = 1; }
+import "github.com/kralicky/ragu/testdata/grpc1/grpc_1.proto";
+import "google/protobuf/empty.proto";
+
+option go_package = "github.com/kralicky/ragu/testdata/pkg1";
+option (grpc1.sample) = {
+  foo: "bar"
+  bar: 1
+};
+
+message Test2 {
+  google.protobuf.Empty A = 1;
+}

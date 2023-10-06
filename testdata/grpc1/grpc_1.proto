@@ -1,9 +1,16 @@
 syntax = "proto3";
-option go_package = "github.com/kralicky/ragu/testdata/grpc1";
-import "google/api/annotations.proto";
-import "google/rpc/status.proto";
 
 package grpc1;
+
+import "google/api/annotations.proto";
+import "google/protobuf/descriptor.proto";
+import "google/rpc/status.proto";
+
+option go_package = "github.com/kralicky/ragu/testdata/grpc1";
+
+extend google.protobuf.FileOptions {
+  SampleFileOptions sample = 12345;
+}
 
 // Message Comment
 message Test {
@@ -22,4 +29,9 @@ service Service1 {
       body: "*"
     };
   }
+}
+
+message SampleFileOptions {
+  string foo = 1;
+  int32  bar = 2;
 }

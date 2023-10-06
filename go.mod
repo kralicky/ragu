@@ -5,19 +5,18 @@ go 1.21
 toolchain go1.21.1
 
 require (
-	github.com/bmatcuk/doublestar v1.3.4
 	github.com/flosch/pongo2/v6 v6.0.0
 	github.com/gogo/protobuf v1.3.2
 	github.com/golang/protobuf v1.5.3
 	github.com/iancoleman/strcase v0.2.0
 	github.com/jhump/protoreflect v1.15.1
 	github.com/kralicky/grpc-gateway/v2 v2.15.2
-	github.com/kralicky/protols v0.0.0-20231003174822-453fee023a3e
+	github.com/kralicky/protols v0.0.0-20231006040922-079c3c15b1ce
 	github.com/samber/lo v1.38.1
 	go.uber.org/zap v1.24.0
 	golang.org/x/exp v0.0.0-20230522175609-2e198f4a06a1
-	google.golang.org/genproto/googleapis/api v0.0.0-20230711160842-782d3b101e98
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20230706204954-ccb25ca9f130
+	google.golang.org/genproto/googleapis/api v0.0.0-20231002182017-d307bd883b97
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20231002182017-d307bd883b97
 	google.golang.org/protobuf v1.31.0
 )
 
@@ -38,8 +37,8 @@ require (
 	golang.org/x/tools v0.6.0 // indirect
 	golang.org/x/tools/gopls v0.12.4 // indirect
 	golang.org/x/vuln v0.0.0-20230110180137-6ad3e3d07815 // indirect
-	google.golang.org/genproto v0.0.0-20230706204954-ccb25ca9f130 // indirect
-	google.golang.org/grpc v1.56.2 // indirect
+	google.golang.org/genproto v0.0.0-20231002182017-d307bd883b97 // indirect
+	google.golang.org/grpc v1.58.2 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
