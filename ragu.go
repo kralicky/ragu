@@ -12,7 +12,6 @@ import (
 	"github.com/kralicky/protols/pkg/sources"
 	"github.com/kralicky/ragu/pkg/util"
 	"github.com/samber/lo"
-	"go.uber.org/zap"
 	"google.golang.org/protobuf/compiler/protogen"
 	"google.golang.org/protobuf/reflect/protodesc"
 	"google.golang.org/protobuf/reflect/protoreflect"
@@ -54,7 +53,7 @@ func GenerateCode(generators []Generator, searchDirs []string) ([]*GeneratedFile
 			searchDirs[i] = filepath.Join(wd, dir)
 		}
 	}
-	driver := codegen.NewDriver(wd, zap.NewNop())
+	driver := codegen.NewDriver(wd)
 	results, err := driver.Compile(sources.SearchDirs(searchDirs...))
 	if err != nil {
 		return nil, err
