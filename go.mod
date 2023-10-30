@@ -10,7 +10,7 @@ require (
 	github.com/golang/protobuf v1.5.3
 	github.com/iancoleman/strcase v0.2.0
 	github.com/kralicky/grpc-gateway/v2 v2.15.2
-	github.com/kralicky/protols v0.0.0-20231030170445-e932ba59c542
+	github.com/kralicky/protols v0.0.0-20231030174924-f06bd76da1ed
 	github.com/samber/lo v1.38.1
 	google.golang.org/genproto/googleapis/api v0.0.0-20231002182017-d307bd883b97
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20231002182017-d307bd883b97
