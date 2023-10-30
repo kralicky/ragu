@@ -5,14 +5,13 @@ import (
 	"compress/gzip"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"strings"
 	"sync"
 
 	_ "github.com/gogo/protobuf/gogoproto"
 	gproto "github.com/gogo/protobuf/proto"
 	dpb "github.com/golang/protobuf/protoc-gen-go/descriptor"
-	"github.com/jhump/protoreflect/desc"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protodesc"
 	"google.golang.org/protobuf/reflect/protoreflect"
@@ -73,20 +72,21 @@ func LoadGogoFileDescriptor(filename string, opts ...CompatLoadOption) {
 		rename:   options.rename,
 		seen:     map[string]*descriptorpb.FileDescriptorProto{},
 	})
-	descriptors, err := desc.CreateFileDescriptors(fileDescs)
+	descriptors, err := protodesc.NewFiles(&descriptorpb.FileDescriptorSet{File: fileDescs})
 	if err != nil {
 		panic(err)
 	}
 	set := &descriptorpb.FileDescriptorSet{
 		File: []*descriptorpb.FileDescriptorProto{},
 	}
-	for _, v := range descriptors {
-		dp := v.AsFileDescriptorProto()
+	descriptors.RangeFiles(func(fd protoreflect.FileDescriptor) bool {
+		dp := protodesc.ToFileDescriptorProto(fd)
 		if *dp.Name == "gogo.proto" {
 			*dp.Name = "github.com/gogo/protobuf/gogoproto/gogo.proto"
 		}
 		set.File = append(set.File, dp)
-	}
+		return true
+	})
 	files, err := protodesc.NewFiles(set)
 	if err != nil {
 		panic(err)
@@ -134,8 +134,8 @@ func createGogoFileDescWithDeps(o createOptions) []*dpb.FileDescriptorProto {
 			*fd.Name = strings.TrimPrefix(fn, k8sVendorPrefix)
 		}
 		fileDesc = fd
-	} else if fd, err := desc.LoadFileDescriptor(fn); err == nil {
-		fileDesc = fd.AsFileDescriptorProto()
+	} else if fd, err := protoregistry.GlobalFiles.FindFileByPath(fn); err == nil {
+		fileDesc = protodesc.ToFileDescriptorProto(fd)
 	} else {
 		panic("failed to load file descriptor: " + fn)
 	}
@@ -181,7 +181,7 @@ func decompress(b []byte) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("bad gzipped descriptor: %v", err)
 	}
-	out, err := ioutil.ReadAll(r)
+	out, err := io.ReadAll(r)
 	if err != nil {
 		return nil, fmt.Errorf("bad gzipped descriptor: %v", err)
 	}

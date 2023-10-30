@@ -5,8 +5,9 @@ import (
 	"strings"
 
 	"github.com/iancoleman/strcase"
-	"github.com/jhump/protoreflect/desc"
+	"github.com/kralicky/ragu/pkg/util"
 	"golang.org/x/exp/slices"
+	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/descriptorpb"
 )
 
@@ -70,10 +71,10 @@ type Method struct {
 	ClientStreaming     bool   `json:"client_streaming"`
 }
 
-func buildModel(f *desc.FileDescriptor, deps []*desc.FileDescriptor) *Model {
+func buildModel(f protoreflect.FileDescriptor) *Model {
 	m := &Model{
 		OutputFile: &OutputFile{
-			InputFilenames: []string{f.GetName()},
+			InputFilenames: []string{f.Path()},
 		},
 	}
 	m.OutputFile.Enums = m.buildEnums(f)
@@ -84,38 +85,39 @@ func buildModel(f *desc.FileDescriptor, deps []*desc.FileDescriptor) *Model {
 	return m
 }
 
-func (m *Model) buildEnums(f *desc.FileDescriptor) []Enum {
+func (m *Model) buildEnums(f protoreflect.FileDescriptor) []Enum {
 	enums := []Enum{}
-	for _, e := range f.GetEnumTypes() {
+	srcLocations := f.SourceLocations()
+	for _, e := range util.Collect(f.Enums()) {
 		entries := []Entry{}
-		for _, value := range e.GetValues() {
+		for _, value := range util.Collect(e.Values()) {
 			e := Entry{
-				Comment: formatComment(value.GetSourceInfo().GetLeadingComments(), 1),
-				Name:    value.GetName(),
-				Value:   value.GetNumber(),
+				Comment: formatComment(srcLocations.ByDescriptor(value).LeadingComments, 1),
+				Name:    string(value.Name()),
+				Value:   int32(value.Number()),
 			}
 			entries = append(entries, e)
 		}
 		enums = append(enums, Enum{
-			Comment: formatComment(e.GetSourceInfo().GetLeadingComments(), 1),
-			PyName:  formatClassName(e.GetName()),
+			Comment: formatComment(srcLocations.ByDescriptor(e).LeadingComments, 1),
+			PyName:  formatClassName(e.Name()),
 			Entries: entries,
 		})
 	}
-	for _, msg := range f.GetMessageTypes() {
-		for _, nestedEnum := range msg.GetNestedEnumTypes() {
+	for _, msg := range util.Collect(f.Messages()) {
+		for _, nestedEnum := range util.Collect(msg.Enums()) {
 			entries := []Entry{}
-			for _, value := range nestedEnum.GetValues() {
+			for _, value := range util.Collect(nestedEnum.Values()) {
 				e := Entry{
-					Comment: formatComment(value.GetSourceInfo().GetLeadingComments(), 1),
-					Name:    value.GetName(),
-					Value:   value.GetNumber(),
+					Comment: formatComment(srcLocations.ByDescriptor(value).LeadingComments, 1),
+					Name:    string(value.Name()),
+					Value:   int32(value.Number()),
 				}
 				entries = append(entries, e)
 			}
 			enums = append(enums, Enum{
-				Comment: formatComment(nestedEnum.GetSourceInfo().GetLeadingComments(), 1),
-				PyName:  formatClassName(msg.GetName() + "_" + nestedEnum.GetName()),
+				Comment: formatComment(srcLocations.ByDescriptor(nestedEnum).LeadingComments, 1),
+				PyName:  formatClassName(msg.Name() + "_" + nestedEnum.Name()),
 				Entries: entries,
 			})
 		}
@@ -123,50 +125,51 @@ func (m *Model) buildEnums(f *desc.FileDescriptor) []Enum {
 	return enums
 }
 
-func (m *Model) buildMessages(f *desc.FileDescriptor) []Message {
+func (m *Model) buildMessages(f protoreflect.FileDescriptor) []Message {
+	srcLocations := f.SourceLocations()
 	messages := []Message{}
-	for _, msg := range f.GetMessageTypes() {
+	for _, msg := range util.Collect(f.Messages()) {
 		fields := []Field{}
-		for _, field := range msg.GetFields() {
+		for _, field := range util.Collect(msg.Fields()) {
 			fields = append(fields, m.buildField(field))
 		}
 		messages = append(messages, Message{
-			Comment:    formatComment(msg.GetSourceInfo().GetLeadingComments(), 1),
-			PyName:     formatClassName(msg.GetName()),
-			Deprecated: msg.GetMessageOptions().GetDeprecated(),
+			Comment:    formatComment(srcLocations.ByDescriptor(msg).LeadingComments, 1),
+			PyName:     formatClassName(msg.Name()),
+			Deprecated: msg.Options().(*descriptorpb.MessageOptions).GetDeprecated(),
 			Fields:     fields,
 		})
 	}
 	return messages
 }
 
-func (m *Model) buildField(f *desc.FieldDescriptor) Field {
-	name := formatFieldName(f.GetName())
+func (m *Model) buildField(f protoreflect.FieldDescriptor) Field {
+	name := formatFieldName(f.Name())
 	annotation := ""
 	pyType, err := m.pyType(f)
 	if err != nil {
 		panic(err)
 	}
-	fieldWraps := strings.HasPrefix(f.GetType().String(), "google.protobuf")
-	fieldArgs := []string{fmt.Sprint(f.GetNumber())}
+	fieldWraps := f.Kind() == protoreflect.MessageKind && strings.HasPrefix(string(f.Message().FullName()), "google.protobuf")
+	fieldArgs := []string{fmt.Sprint(f.Number())}
 	if fieldWraps {
 		fieldArgs = append(fieldArgs, "wraps=True")
 	}
 	var protoFieldType string
 
 	if f.IsMap() {
-		keyType, err := m.pyType(f.GetMapKeyType())
+		keyType, err := m.pyType(f.MapKey())
 		if err != nil {
 			panic(err)
 		}
-		valueType, err := m.pyType(f.GetMapValueType())
+		valueType, err := m.pyType(f.MapValue())
 		if err != nil {
 			panic(err)
 		}
 		annotation = fmt.Sprintf(": Dict[%s, %s]", keyType, valueType)
 		fieldArgs = append(fieldArgs, fmt.Sprintf("key_type=%s", keyType), fmt.Sprintf("value_type=%s", valueType))
 		m.OutputFile.TypingImports = append(m.OutputFile.TypingImports, "Dict")
-	} else if f.IsRepeated() {
+	} else if f.Cardinality() == protoreflect.Repeated {
 		annotation = fmt.Sprintf(": List[%s]", pyType)
 		m.OutputFile.TypingImports = append(m.OutputFile.TypingImports, "List")
 	} else {
@@ -176,51 +179,52 @@ func (m *Model) buildField(f *desc.FieldDescriptor) Field {
 	if f.IsMap() {
 		protoFieldType = "map"
 	} else {
-		protoFieldType = strings.TrimPrefix(strings.ToLower(f.GetType().String()), "type_")
+		protoFieldType = pyType
 	}
 	fieldType := fmt.Sprintf("betterproto.%s_field(%s)", protoFieldType, strings.Join(fieldArgs, ", "))
 	return Field{
-		Comment:     formatComment(f.GetSourceInfo().GetLeadingComments(), 1),
+		Comment:     formatComment(f.ParentFile().SourceLocations().ByDescriptor(f).LeadingComments, 1),
 		FieldString: fmt.Sprintf("%s%s = %s", name, annotation, fieldType),
 	}
 }
 
-func (m *Model) messageTypeRef(from *desc.FileDescriptor, msg *desc.MessageDescriptor) string {
-	fieldWraps := strings.HasPrefix(msg.GetFullyQualifiedName(), "google.protobuf")
-	return m.getTypeReference(from, msg.GetFile(),
-		msg.GetFile().GetDependencies(),
-		msg.GetFullyQualifiedName(), fieldWraps)
+func (m *Model) messageTypeRef(from protoreflect.FileDescriptor, msg protoreflect.MessageDescriptor) string {
+	fieldWraps := strings.HasPrefix(string(msg.FullName()), "google.protobuf")
+	return m.getTypeReference(from, msg.ParentFile(),
+		msg.ParentFile().Imports(),
+		string(msg.FullName()), fieldWraps)
 }
 
-func (m *Model) buildServices(f *desc.FileDescriptor) []Service {
+func (m *Model) buildServices(f protoreflect.FileDescriptor) []Service {
 	anyClientStreaming := false
 	anyServerStreaming := false
+	srcLocations := f.SourceLocations()
 	services := []Service{}
-	for _, s := range f.GetServices() {
+	for _, s := range util.Collect(f.Services()) {
 		methods := []Method{}
-		for _, method := range s.GetMethods() {
+		for _, method := range util.Collect(s.Methods()) {
 
 			methods = append(methods, Method{
-				PyInputMessageParam: formatFieldName(method.GetInputType().GetName()),
-				Comment:             formatComment(method.GetSourceInfo().GetLeadingComments(), 2),
-				PyOutputMessageType: m.messageTypeRef(f, method.GetOutputType()),
-				PyInputMessageType:  m.messageTypeRef(f, method.GetInputType()),
-				PyName:              formatMethodName(method.GetName()),
-				Route:               fmt.Sprintf("/%s/%s", s.GetFullyQualifiedName(), method.GetName()),
-				PyInputMessage:      formatClassName(method.GetInputType().GetName()),
-				ServerStreaming:     method.IsServerStreaming(),
-				ClientStreaming:     method.IsClientStreaming(),
+				PyInputMessageParam: formatFieldName(method.Input().Name()),
+				Comment:             formatComment(srcLocations.ByDescriptor(method).LeadingComments, 2),
+				PyOutputMessageType: m.messageTypeRef(f, method.Output()),
+				PyInputMessageType:  m.messageTypeRef(f, method.Input()),
+				PyName:              formatMethodName(method.Name()),
+				Route:               fmt.Sprintf("/%s/%s", s.FullName(), method.Name()),
+				PyInputMessage:      formatClassName(method.Input().Name()),
+				ServerStreaming:     method.IsStreamingServer(),
+				ClientStreaming:     method.IsStreamingClient(),
 			})
-			if method.IsClientStreaming() {
+			if method.IsStreamingClient() {
 				anyClientStreaming = true
 			}
-			if method.IsServerStreaming() {
+			if method.IsStreamingServer() {
 				anyServerStreaming = true
 			}
 		}
 		services = append(services, Service{
-			Comment: formatComment(s.GetSourceInfo().GetLeadingComments(), 1),
-			PyName:  formatClassName(s.GetName()),
+			Comment: formatComment(srcLocations.ByDescriptor(s).LeadingComments, 1),
+			PyName:  formatClassName(s.Name()),
 			Methods: methods,
 		})
 	}
@@ -252,52 +256,52 @@ func formatMethodName[T ~string](name T) string {
 	return strcase.ToSnake(string(name))
 }
 
-func (m *Model) pyType(field *desc.FieldDescriptor) (string, error) {
-	switch field.GetType() {
-	case descriptorpb.FieldDescriptorProto_TYPE_DOUBLE,
-		descriptorpb.FieldDescriptorProto_TYPE_FLOAT:
+func (m *Model) pyType(field protoreflect.FieldDescriptor) (string, error) {
+	switch field.Kind() {
+	case protoreflect.DoubleKind,
+		protoreflect.FloatKind:
 		return "float", nil
-	case descriptorpb.FieldDescriptorProto_TYPE_INT64,
-		descriptorpb.FieldDescriptorProto_TYPE_UINT64,
-		descriptorpb.FieldDescriptorProto_TYPE_INT32,
-		descriptorpb.FieldDescriptorProto_TYPE_UINT32,
-		descriptorpb.FieldDescriptorProto_TYPE_FIXED64,
-		descriptorpb.FieldDescriptorProto_TYPE_FIXED32,
-		descriptorpb.FieldDescriptorProto_TYPE_SFIXED64,
-		descriptorpb.FieldDescriptorProto_TYPE_SFIXED32,
-		descriptorpb.FieldDescriptorProto_TYPE_SINT32,
-		descriptorpb.FieldDescriptorProto_TYPE_SINT64:
+	case protoreflect.Int64Kind,
+		protoreflect.Uint64Kind,
+		protoreflect.Int32Kind,
+		protoreflect.Uint32Kind,
+		protoreflect.Fixed64Kind,
+		protoreflect.Fixed32Kind,
+		protoreflect.Sfixed64Kind,
+		protoreflect.Sfixed32Kind,
+		protoreflect.Sint32Kind,
+		protoreflect.Sint64Kind:
 		return "int", nil
-	case descriptorpb.FieldDescriptorProto_TYPE_BOOL:
+	case protoreflect.BoolKind:
 		return "bool", nil
-	case descriptorpb.FieldDescriptorProto_TYPE_STRING:
+	case protoreflect.StringKind:
 		return "str", nil
-	case descriptorpb.FieldDescriptorProto_TYPE_BYTES:
+	case protoreflect.BytesKind:
 		return "bytes", nil
-	case descriptorpb.FieldDescriptorProto_TYPE_MESSAGE:
+	case protoreflect.MessageKind:
 		if field.IsMap() {
-			keyType, err := m.pyType(field.GetMapKeyType())
+			keyType, err := m.pyType(field.MapKey())
 			if err != nil {
 				return "", err
 			}
-			valueType, err := m.pyType(field.GetMapValueType())
+			valueType, err := m.pyType(field.MapValue())
 			if err != nil {
 				return "", err
 			}
 			return fmt.Sprintf("Dict[%s, %s]", keyType, valueType), nil
 		}
-		fieldWraps := strings.HasPrefix(field.GetMessageType().GetFullyQualifiedName(), "google.protobuf")
+		fieldWraps := strings.HasPrefix(string(field.Message().FullName()), "google.protobuf")
 		return m.getTypeReference(
-			field.GetFile(), field.GetMessageType().GetFile(),
-			field.GetFile().GetDependencies(),
-			field.GetMessageType().GetFullyQualifiedName(), fieldWraps), nil
-	case descriptorpb.FieldDescriptorProto_TYPE_ENUM:
+			field.ParentFile(), field.Message().ParentFile(),
+			field.ParentFile().Imports(),
+			string(field.Message().FullName()), fieldWraps), nil
+	case protoreflect.EnumKind:
 		return m.getTypeReference(
-			field.GetFile(), field.GetEnumType().GetFile(),
-			field.GetFile().GetDependencies(),
-			field.GetEnumType().GetFullyQualifiedName(), false), nil
+			field.ParentFile(), field.Enum().ParentFile(),
+			field.ParentFile().Imports(),
+			string(field.Enum().FullName()), false), nil
 	}
-	return "", fmt.Errorf("unknown/unsupported type %s", field.GetType())
+	return "", fmt.Errorf("unknown/unsupported type %s", field.Kind())
 }
 
 func (o *OutputFile) cleanImports() {

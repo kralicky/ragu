@@ -6,9 +6,9 @@ import (
 	"path"
 
 	"github.com/flosch/pongo2/v6"
-	"github.com/jhump/protoreflect/desc"
-	"github.com/samber/lo"
 	"google.golang.org/protobuf/compiler/protogen"
+	"google.golang.org/protobuf/reflect/protodesc"
+	"google.golang.org/protobuf/types/descriptorpb"
 )
 
 //go:embed template.py.j2
@@ -34,12 +34,18 @@ func (generator) Generate(gen *protogen.Plugin) error {
 			filename := f.GeneratedFilenamePrefix + "_pb.py"
 			g := gen.NewGeneratedFile(filename, "")
 
-			fd, err := desc.CreateFileDescriptors(gen.Request.ProtoFile)
+			fd, err := protodesc.NewFiles(&descriptorpb.FileDescriptorSet{
+				File: gen.Request.ProtoFile,
+			})
 			if err != nil {
 				return err
 			}
 
-			model := buildModel(fd[f.Proto.GetName()], lo.Values(fd))
+			f, err := fd.FindFileByPath(f.Proto.GetName())
+			if err != nil {
+				return err
+			}
+			model := buildModel(f)
 			jsonData, err := json.Marshal(model)
 			if err != nil {
 				return err

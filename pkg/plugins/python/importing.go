@@ -7,8 +7,8 @@ import (
 	"strings"
 
 	"github.com/iancoleman/strcase"
-	"github.com/jhump/protoreflect/desc"
 	"golang.org/x/exp/slices"
+	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
 // https://github.com/danielgtaylor/python-betterproto/blob/master/src/betterproto/compile/importing.py
@@ -36,7 +36,7 @@ func parseSourceTypeName(fieldTypeName string) (string, string) {
 	}
 }
 
-func (m *Model) getTypeReference(from, to *desc.FileDescriptor, imports []*desc.FileDescriptor, sourceType string, unwrap bool) string {
+func (m *Model) getTypeReference(from, to protoreflect.FileDescriptor, imports protoreflect.FileImports, sourceType string, unwrap bool) string {
 	if unwrap {
 		if wrapperType, ok := wrapperTypes[sourceType]; ok {
 			m.OutputFile.TypingImports = append(m.OutputFile.TypingImports, "Optional")
@@ -52,7 +52,7 @@ func (m *Model) getTypeReference(from, to *desc.FileDescriptor, imports []*desc.
 		}
 	}
 	sourcePackage, sourceType := parseSourceTypeName(sourceType)
-	pkg := from.GetPackage()
+	pkg := string(from.ParentFile().Package())
 	currentPackage := strings.Split(pkg, ".")
 	pyPackage := strings.Split(sourcePackage, ".")
 	pyType := formatClassName(sourceType)
@@ -79,22 +79,22 @@ func (m *Model) getTypeReference(from, to *desc.FileDescriptor, imports []*desc.
 	return ref
 }
 
-func referenceAbsolute(imports []*desc.FileDescriptor, pyPackage []string, pyType string) (ref string, addImports []string) {
+func referenceAbsolute(imports protoreflect.FileImports, pyPackage []string, pyType string) (ref string, addImports []string) {
 	stringImport := strings.Join(pyPackage, ".")
 	stringAlias := strcase.ToSnake(stringImport)
 	return fmt.Sprintf("%s.%s", stringAlias, pyType), []string{fmt.Sprintf("import %s as %s", stringImport, stringAlias)}
 }
 
-func referenceSibling(from, to *desc.FileDescriptor, pyType string) (_ string, addImports []string) {
+func referenceSibling(from, to protoreflect.FileDescriptor, pyType string) (_ string, addImports []string) {
 	// check if the files are the same, if not we need to add an import
-	if from.GetName() != to.GetFile().GetName() {
-		filename := strings.TrimSuffix(filepath.Base(to.GetName()), filepath.Ext(to.GetName())) + "_pb"
+	if from.Path() != to.ParentFile().Path() {
+		filename := strings.TrimSuffix(filepath.Base(string(to.Name())), filepath.Ext(string(to.Name()))) + "_pb"
 		addImports = append(addImports, fmt.Sprintf("from %s import %s", filename, pyType))
 	}
 	return pyType, addImports
 }
 
-func referenceDescendent(currentPackage []string, imports []*desc.FileDescriptor, pyPackage []string, pyType string) (ref string, addImports []string) {
+func referenceDescendent(currentPackage []string, imports protoreflect.FileImports, pyPackage []string, pyType string) (ref string, addImports []string) {
 	importingDescendent := pyPackage[len(currentPackage):]
 	stringFrom := strings.Join(importingDescendent[:len(importingDescendent)-1], ".")
 	stringImport := importingDescendent[len(importingDescendent)-1]
@@ -109,7 +109,7 @@ func referenceDescendent(currentPackage []string, imports []*desc.FileDescriptor
 	return
 }
 
-func referenceAncestor(currentPackage []string, imports []*desc.FileDescriptor, pyPackage []string, pyType string) (ref string, addImports []string) {
+func referenceAncestor(currentPackage []string, imports protoreflect.FileImports, pyPackage []string, pyType string) (ref string, addImports []string) {
 	distanceUp := len(currentPackage) - len(pyPackage)
 	if len(pyPackage) > 0 {
 		stringImport := pyPackage[len(pyPackage)-1]
@@ -125,7 +125,7 @@ func referenceAncestor(currentPackage []string, imports []*desc.FileDescriptor, 
 	return
 }
 
-func referenceCousin(currentPackage []string, imports []*desc.FileDescriptor, pyPackage []string, pyType string) (ref string, addImports []string) {
+func referenceCousin(currentPackage []string, imports protoreflect.FileImports, pyPackage []string, pyType string) (ref string, addImports []string) {
 	index := 0
 	for ; index < len(currentPackage) && index < len(pyPackage) && currentPackage[index] == pyPackage[index]; index++ {
 	}
