@@ -10,9 +10,8 @@ require (
 	github.com/golang/protobuf v1.5.3
 	github.com/iancoleman/strcase v0.2.0
 	github.com/kralicky/grpc-gateway/v2 v2.15.2
-	github.com/kralicky/protols v0.0.0-20231030041558-aa5dc366fb35
+	github.com/kralicky/protols v0.0.0-20231030170445-e932ba59c542
 	github.com/samber/lo v1.38.1
-	golang.org/x/exp v0.0.0-20230905200255-921286631fa9
 	google.golang.org/genproto/googleapis/api v0.0.0-20231002182017-d307bd883b97
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20231002182017-d307bd883b97
 	google.golang.org/protobuf v1.31.0
@@ -29,6 +28,7 @@ require (
 	github.com/plar/go-adaptive-radix-tree v1.0.5 // indirect
 	github.com/stoewer/go-strcase v1.3.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
+	golang.org/x/exp v0.0.0-20230905200255-921286631fa9 // indirect
 	golang.org/x/mod v0.13.0 // indirect
 	golang.org/x/net v0.17.0 // indirect
 	golang.org/x/sync v0.4.0 // indirect

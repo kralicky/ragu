@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/iancoleman/strcase"
-	"golang.org/x/exp/slices"
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
 

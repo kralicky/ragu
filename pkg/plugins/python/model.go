@@ -2,11 +2,11 @@ package python
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/iancoleman/strcase"
 	"github.com/kralicky/ragu/pkg/util"
-	"golang.org/x/exp/slices"
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/descriptorpb"
 )
