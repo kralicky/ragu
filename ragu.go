@@ -10,11 +10,8 @@ import (
 
 	"github.com/kralicky/protols/codegen"
 	"github.com/kralicky/protols/pkg/sources"
-	"github.com/kralicky/ragu/pkg/util"
 	"github.com/samber/lo"
 	"google.golang.org/protobuf/compiler/protogen"
-	"google.golang.org/protobuf/reflect/protodesc"
-	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/descriptorpb"
 	"google.golang.org/protobuf/types/pluginpb"
 )
@@ -53,7 +50,7 @@ func GenerateCode(generators []Generator, searchDirs []string) ([]*GeneratedFile
 			searchDirs[i] = filepath.Join(wd, dir)
 		}
 	}
-	driver := codegen.NewDriver(wd)
+	driver := codegen.NewDriver(wd, codegen.WithRenameStrategy(codegen.RestoreExternalGoModuleDescriptorNames))
 	results, err := driver.Compile(sources.SearchDirs(searchDirs...))
 	if err != nil {
 		return nil, err
@@ -95,9 +92,7 @@ func GenerateCode(generators []Generator, searchDirs []string) ([]*GeneratedFile
 
 	codeGeneratorRequest := &pluginpb.CodeGeneratorRequest{
 		FileToGenerate: toGenerate,
-		ProtoFile: util.Map(results.AllDescriptors, func(f protoreflect.FileDescriptor) *descriptorpb.FileDescriptorProto {
-			return protodesc.ToFileDescriptorProto(f)
-		}),
+		ProtoFile:      results.AllDescriptorProtos,
 		CompilerVersion: &pluginpb.Version{
 			Major: lo.ToPtr[int32](1),
 			Minor: lo.ToPtr[int32](0),
