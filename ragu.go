@@ -38,9 +38,41 @@ func (g *GeneratedFile) WriteToDisk() error {
 	return os.WriteFile(g.SourceRelPath, []byte(g.Content), 0644)
 }
 
+type GenerateStrategy int
+
+const (
+	// Generates only workspace-local descriptors
+	WorkspaceLocalDescriptorsOnly GenerateStrategy = iota
+	// Generates all descriptors, including those from dependencies, except
+	// package google.protobuf.
+	AllDescriptorsExceptGoogleProtobuf
+)
+
+type GenerateCodeOptions struct {
+	strategy GenerateStrategy
+}
+
+type GenerateCodeOption func(*GenerateCodeOptions)
+
+func (o *GenerateCodeOptions) apply(opts ...GenerateCodeOption) {
+	for _, op := range opts {
+		op(o)
+	}
+}
+
+func WithGenerateStrategy(strategy GenerateStrategy) GenerateCodeOption {
+	return func(o *GenerateCodeOptions) {
+		o.strategy = strategy
+	}
+}
+
 // Generates code for each source file found in the given search directories,
 // using one or more code generators.
-func GenerateCode(generators []Generator, searchDirs []string) ([]*GeneratedFile, error) {
+func GenerateCode(generators []Generator, searchDirs []string, opts ...GenerateCodeOption) ([]*GeneratedFile, error) {
+	options := &GenerateCodeOptions{
+		strategy: WorkspaceLocalDescriptorsOnly,
+	}
+
 	wd, err := os.Getwd()
 	if err != nil {
 		return nil, err
@@ -80,13 +112,24 @@ func GenerateCode(generators []Generator, searchDirs []string) ([]*GeneratedFile
 	}
 
 	toGenerate := []string{}
-	for _, desc := range results.WorkspaceLocalDescriptors {
-		dir := sourcePkgDirs[filepath.Dir(desc.Path())]
-		for _, searchDir := range searchDirs {
-			if strings.HasPrefix(dir, searchDir) {
-				toGenerate = append(toGenerate, desc.Path())
-				break
+	switch options.strategy {
+	case WorkspaceLocalDescriptorsOnly:
+		for _, desc := range results.WorkspaceLocalDescriptors {
+			dir := sourcePkgDirs[filepath.Dir(desc.Path())]
+			for _, searchDir := range searchDirs {
+				if strings.HasPrefix(dir, searchDir) {
+					toGenerate = append(toGenerate, desc.Path())
+					break
+				}
 			}
+		}
+
+	case AllDescriptorsExceptGoogleProtobuf:
+		for _, desc := range results.AllDescriptors {
+			if desc.Package() == "google.protobuf" {
+				continue
+			}
+			toGenerate = append(toGenerate, desc.Path())
 		}
 	}
 
