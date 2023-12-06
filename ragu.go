@@ -66,7 +66,7 @@ func GenerateCode(generators []Generator, searchDirs []string) ([]*GeneratedFile
 	for _, desc := range results.AllDescriptors {
 		uri := results.FileURIsByPath[desc.Path()]
 		if uri.IsFile() {
-			sourcePkgDirs[filepath.Dir(desc.Path())] = filepath.Dir(uri.Filename())
+			sourcePkgDirs[filepath.Dir(desc.Path())] = filepath.Dir(uri.Path())
 		}
 		// fix up any incomplete go_package options if we have the info available
 		// this will transform e.g. `go_package = "bar"` to `go_package = "github.com/foo/bar"`

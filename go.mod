@@ -10,11 +10,11 @@ require (
 	github.com/golang/protobuf v1.5.3
 	github.com/iancoleman/strcase v0.3.0
 	github.com/kralicky/grpc-gateway/v2 v2.15.2
-	github.com/kralicky/protols v0.0.0-20231031175015-9c7a7b5aea8e
+	github.com/kralicky/protols v0.0.0-20231127004555-d87290c46672
 	github.com/samber/lo v1.38.1
 	google.golang.org/genproto/googleapis/api v0.0.0-20231030173426-d783a09b4405
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20231030173426-d783a09b4405
-	google.golang.org/protobuf v1.31.0
+	google.golang.org/protobuf v1.31.1-0.20231027082548-f4a6c1f6e5c1
 )
 
 require (
@@ -29,12 +29,12 @@ require (
 	github.com/stoewer/go-strcase v1.3.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/exp v0.0.0-20230905200255-921286631fa9 // indirect
-	golang.org/x/mod v0.13.0 // indirect
-	golang.org/x/net v0.17.0 // indirect
-	golang.org/x/sync v0.4.0 // indirect
-	golang.org/x/sys v0.13.0 // indirect
-	golang.org/x/telemetry v0.0.0-20231011160506-788d5629a052 // indirect
-	golang.org/x/text v0.13.0 // indirect
+	golang.org/x/mod v0.14.0 // indirect
+	golang.org/x/net v0.18.0 // indirect
+	golang.org/x/sync v0.5.0 // indirect
+	golang.org/x/sys v0.14.0 // indirect
+	golang.org/x/telemetry v0.0.0-20231114163143-69313e640400 // indirect
+	golang.org/x/text v0.14.0 // indirect
 	golang.org/x/tools v0.14.0 // indirect
 	golang.org/x/tools/gopls v0.12.4 // indirect
 	golang.org/x/vuln v1.0.1 // indirect
@@ -44,7 +44,7 @@ require (
 )
 
 replace (
-	github.com/bufbuild/protocompile => github.com/kralicky/protocompile v0.0.0-20231030041518-0ad723357927
-	golang.org/x/tools => github.com/kralicky/tools v0.0.0-20231015012334-9bbd10d902a7
-	golang.org/x/tools/gopls => github.com/kralicky/tools/gopls v0.0.0-20231015012334-9bbd10d902a7
+	github.com/bufbuild/protocompile => github.com/kralicky/protocompile v0.0.0-20231127004431-65d698ee9458
+	golang.org/x/tools => github.com/kralicky/tools v0.0.0-20231125202352-51ba2ad9b13a
+	golang.org/x/tools/gopls => github.com/kralicky/tools/gopls v0.0.0-20231125202352-51ba2ad9b13a
 )
